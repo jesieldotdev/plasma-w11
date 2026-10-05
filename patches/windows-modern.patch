@@ -476,6 +476,112 @@ index bd04add..ee46770 100644
      <entry name="reverseIconOrder" type="bool">
        <label>Whether to reverse the order of icons in the panel</label>
        <default>false</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
+index 720a05b..39360f1 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
+@@ -34,7 +34,7 @@ Lib.Page {
+         Layout.bottomMargin: 8
+         height: 1
+         color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+-        visible: models.sinkInputFilterModel.count > 0
++        visible: models.sinkInputFilterModel.count > 0 || models.eventStreamModel.count > 0
+     }
+ 
+     Volume.VolumeMixerSection {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
+index 0154d7d..51e1b58 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
+@@ -9,14 +9,70 @@ ColumnLayout {
+ 
+     property var models
+     property bool hasApps: models.sinkInputFilterModel.count > 0
++    property bool hasEvents: models.eventStreamModel.count > 0
+ 
+     spacing: 0
+-    visible: hasApps
++    visible: hasApps || hasEvents
+ 
+     Lib.SectionHeader {
+         text: qsTr("Volume Mixer")
+     }
+ 
++    // "Sons do sistema", como no mixer do Windows 11: sempre visível
++    Repeater {
++        model: models.eventStreamModel
++
++        delegate: Item {
++            Layout.fillWidth: true
++            Layout.preferredHeight: 36
++
++            RowLayout {
++                anchors.fill: parent
++                anchors.leftMargin: 18
++                anchors.rightMargin: 18
++                spacing: 8
++
++                Kirigami.Icon {
++                    Layout.preferredWidth: 20
++                    Layout.preferredHeight: 20
++                    source: model.Muted ? "audio-volume-muted" : "preferences-desktop-notification-bell"
++                    color: Kirigami.Theme.textColor
++                    isMask: true
++
++                    MouseArea {
++                        anchors.fill: parent
++                        onClicked: model.Muted = !model.Muted
++                    }
++                }
++
++                PlasmaComponents3.Label {
++                    Layout.fillWidth: true
++                    text: "Sons do sistema"
++                    color: Kirigami.Theme.textColor
++                    font.pixelSize: 11
++                    elide: Text.ElideRight
++                }
++
++                PlasmaComponents3.Slider {
++                    Layout.preferredWidth: 110
++                    from: 0
++                    to: 65536
++                    value: model.Muted ? 0 : model.Volume
++                    stepSize: Math.round(65536 / 100)
++                    onMoved: {
++                        model.Volume = value
++                        model.Muted = value === 0
++                    }
++                    onPressedChanged: {
++                        if (!pressed) {
++                            section.models.playFeedback(section.models.sink ? section.models.sink.index : -1)
++                        }
++                    }
++                }
++            }
++        }
++    }
++
+     Repeater {
+         model: models.sinkInputFilterModel
+ 
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
+index 71df315..1aa69f1 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
+@@ -28,6 +28,12 @@ QtObject {
+         ]
+     }
+ 
++    // Volume dos sons de notificação/sistema (stream-restore da função "event")
++    readonly property var eventStreamModel: Vol.PulseObjectFilterModel {
++        sourceModel: Vol.StreamRestoreModel {}
++        filters: [{ role: "Name", value: "sink-input-by-media-role:event" }]
++    }
++
+     readonly property var source: Vol.PreferredDevice.source
+     readonly property bool sourceAvailable: source && !(source.name === "auto_null")
+ 
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 index 1380039..0c15c91 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
