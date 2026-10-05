@@ -502,10 +502,36 @@ index 7504c55..d26edbf 100644
      }
  
      function isThemedApplet(applet) {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
+index c9053d5..b70abcb 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
+@@ -53,8 +53,10 @@ QQC2.StackView {
+         mainStack.appletHasHeading = false
+         mainStack.appletHasFooter = false
+ 
+-        if (themedActive) {
+-            const name = flyoutRouter.flyoutNameForApplet(activeApplet)
++        // Calcula a rota aqui: o binding de themedActive pode ainda não ter
++        // sido reavaliado quando este handler roda (ordem não garantida).
++        const name = flyoutRouter.flyoutNameForApplet(activeApplet)
++        if (name !== "") {
+             const comp = themedPages[name]
+             if (comp) {
+                 (mainStack.empty ? mainStack.push : mainStack.replace)(comp, {
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
-index 720a05b..39360f1 100644
+index 720a05b..ba5e77d 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
+@@ -13,7 +13,7 @@ Lib.Page {
+     contentFillsHeight: false
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More volume settings")
++        text: qsTr("Mais configurações de volume")
+         onClicked: KCMLauncher.openSystemSettings("kcm_pulseaudio")
+     }
+ 
 @@ -34,7 +34,7 @@ Lib.Page {
          Layout.bottomMargin: 8
          height: 1
@@ -515,11 +541,81 @@ index 720a05b..39360f1 100644
      }
  
      Volume.VolumeMixerSection {
+@@ -61,7 +61,7 @@ Lib.Page {
+     PlasmaComponents3.Label {
+         Layout.fillWidth: true
+         Layout.topMargin: 10
+-        text: qsTr("No applications playing audio")
++        text: qsTr("Nenhum aplicativo reproduzindo áudio")
+         color: Kirigami.Theme.textColor
+         opacity: 0.5
+         font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
+index b2d2e4e..e4f803d 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
+@@ -16,14 +16,14 @@ ColumnLayout {
+     spacing: 0
+ 
+     Lib.SectionHeader {
+-        text: qsTr("Input Device")
++        text: qsTr("Dispositivo de entrada")
+     }
+ 
+     Lib.ListRow {
+         Layout.fillWidth: true
+         selected: true
+         iconSource: Funcs.volIconName(models.sourceAvailable ? models.source.volume : 0, models.sourceAvailable ? models.source.muted : true)
+-        text: models.sourceAvailable ? models.source.description : qsTr("No input device")
++        text: models.sourceAvailable ? models.source.description : qsTr("Nenhum dispositivo de entrada")
+         trailing: section.hasMultiple ? arrowComponent : null
+         onClicked: if (section.hasMultiple)
+             section.expanded = !section.expanded
+@@ -74,7 +74,7 @@ ColumnLayout {
+                     Layout.fillWidth: true
+                     selected: model.PulseObject && model.PulseObject.default
+                     iconSource: Funcs.volIconName(model.Volume, model.Muted)
+-                    text: model.Description || model.Name || qsTr("Unknown device")
++                    text: model.Description || model.Name || qsTr("Dispositivo desconhecido")
+                     onClicked: {
+                         models.setDefaultSource(model.PulseObject);
+                         models.playFeedback(model.PulseObject.index);
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
+index f0c1a3e..b88762a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
+@@ -15,7 +15,7 @@ ColumnLayout {
+     spacing: 0
+ 
+     Lib.SectionHeader {
+-        text: qsTr("Output Device")
++        text: qsTr("Dispositivo de saída")
+     }
+ 
+     Lib.ListRow {
+@@ -25,7 +25,7 @@ ColumnLayout {
+             models.sinkAvailable ? models.sink.volume : 0,
+             models.sinkAvailable ? models.sink.muted : true
+         )
+-        text: models.sinkAvailable ? models.sink.description : qsTr("No output device")
++        text: models.sinkAvailable ? models.sink.description : qsTr("Nenhum dispositivo de saída")
+         trailing: section.hasMultiple ? arrowComponent : null
+         onClicked: if (section.hasMultiple) section.expanded = !section.expanded
+     }
+@@ -66,7 +66,7 @@ ColumnLayout {
+                     Layout.fillWidth: true
+                     selected: model.PulseObject && model.PulseObject.default
+                     iconSource: Funcs.volIconName(model.Volume, model.Muted)
+-                    text: model.Description || model.Name || qsTr("Unknown device")
++                    text: model.Description || model.Name || qsTr("Dispositivo desconhecido")
+                     onClicked: {
+                         models.setDefaultSink(model.PulseObject)
+                         models.playFeedback(model.PulseObject.index)
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
-index 0154d7d..51e1b58 100644
+index 0154d7d..6cc0a3d 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
-@@ -9,14 +9,70 @@ ColumnLayout {
+@@ -9,12 +9,68 @@ ColumnLayout {
  
      property var models
      property bool hasApps: models.sinkInputFilterModel.count > 0
@@ -530,9 +626,10 @@ index 0154d7d..51e1b58 100644
 +    visible: hasApps || hasEvents
  
      Lib.SectionHeader {
-         text: qsTr("Volume Mixer")
-     }
- 
+-        text: qsTr("Volume Mixer")
++        text: qsTr("Mixer de volume")
++    }
++
 +    // "Sons do sistema", como no mixer do Windows 11: sempre visível
 +    Repeater {
 +        model: models.eventStreamModel
@@ -586,11 +683,18 @@ index 0154d7d..51e1b58 100644
 +                }
 +            }
 +        }
-+    }
-+
-     Repeater {
-         model: models.sinkInputFilterModel
+     }
  
+     Repeater {
+@@ -49,7 +105,7 @@ ColumnLayout {
+ 
+                     PlasmaComponents3.Label {
+                         Layout.fillWidth: true
+-                        text: (model.Client && model.Client.name) || model.Name || qsTr("Unknown application")
++                        text: (model.Client && model.Client.name) || model.Name || qsTr("Aplicativo desconhecido")
+                         color: Kirigami.Theme.textColor
+                         font.pixelSize: 11
+                         elide: Text.ElideRight
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
 index 71df315..1aa69f1 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
