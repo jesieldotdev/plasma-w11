@@ -476,6 +476,32 @@ index bd04add..ee46770 100644
      <entry name="reverseIconOrder" type="bool">
        <label>Whether to reverse the order of icons in the panel</label>
        <default>false</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
+index 7504c55..d26edbf 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
+@@ -23,10 +23,19 @@ Item {
+         "org.kde.plasma.mediacontroller":    "mediacontroller"
+     })
+ 
++    // Páginas temáticas em uso. As outras ainda não foram revisadas e ficam
++    // com o popup padrão do Plasma.
++    readonly property var enabledPages: ["volume"]
++
++    // A propriedade anexada `Plasmoid` não é acessível por uma referência a
++    // outro item no Qt 6 (applet.Plasmoid é sempre undefined); o PlasmoidItem
++    // expõe o Applet em `plasmoid`.
+     function flyoutNameForApplet(applet) {
+-        if (!applet || !applet.Plasmoid)
++        const plasmoid = applet ? applet.plasmoid : null
++        if (!plasmoid)
+             return ""
+-        return mapping[applet.Plasmoid.pluginName] || ""
++        const name = mapping[plasmoid.pluginName] || ""
++        return enabledPages.indexOf(name) !== -1 ? name : ""
+     }
+ 
+     function isThemedApplet(applet) {
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 index 720a05b..39360f1 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
