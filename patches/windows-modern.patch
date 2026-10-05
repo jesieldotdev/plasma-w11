@@ -1,0 +1,658 @@
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
+index e8cb979..5709acb 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
+@@ -33,7 +33,9 @@ MouseArea {
+     readonly property real padding: Plasmoid.configuration.compactPadding
+     readonly property real maxContentHeight: Math.max(1, panelHeight * (1 - 2 * padding))
+ 
+-    implicitWidth: contentLayout.implicitWidth + Kirigami.Units.largeSpacing
++    implicitWidth: Math.max(timeLabel.implicitWidth, dateLabel.visible ? dateLabel.implicitWidth : 0) + Kirigami.Units.largeSpacing * 2
++    Layout.minimumWidth: implicitWidth
++    Layout.preferredWidth: implicitWidth
+     implicitHeight: panelHeight
+ 
+     // Font configured by the user or theme defaults.
+@@ -77,12 +79,12 @@ MouseArea {
+     // Height ratios for stacked labels. Ratios always sum to 1 when visible.
+     readonly property real timeHeightRatio: {
+         if (showDate && showTimezone) return 0.55;
+-        if (showDate || showTimezone) return 0.65;
++        if (showDate || showTimezone) return 0.5;
+         return 1.0;
+     }
+     readonly property real dateHeightRatio: {
+         if (showDate && showTimezone) return 0.30;
+-        if (showDate) return 0.35;
++        if (showDate) return 0.5;
+         return 0;
+     }
+     readonly property real tzHeightRatio: showTimezone ? (showDate ? 0.15 : 0.35) : 0
+@@ -124,8 +126,10 @@ MouseArea {
+ 
+     ColumnLayout {
+         id: contentLayout
+-        anchors.centerIn: parent
+-        width: parent.width
++        anchors.verticalCenter: parent.verticalCenter
++        anchors.right: parent.right
++        anchors.rightMargin: Kirigami.Units.largeSpacing
++        width: parent.width - Kirigami.Units.largeSpacing * 2
+         height: main.maxContentHeight
+         spacing: Kirigami.Units.smallSpacing / 2
+ 
+@@ -135,7 +139,7 @@ MouseArea {
+             Layout.fillWidth: true
+             Layout.preferredHeight: main.maxContentHeight * main.timeHeightRatio
+ 
+-            horizontalAlignment: Text.AlignHCenter
++            horizontalAlignment: Text.AlignRight
+             verticalAlignment: Text.AlignVCenter
+             textFormat: Text.PlainText
+ 
+@@ -165,7 +169,7 @@ MouseArea {
+             Layout.fillWidth: true
+             Layout.preferredHeight: main.maxContentHeight * main.dateHeightRatio
+ 
+-            horizontalAlignment: Text.AlignHCenter
++            horizontalAlignment: Text.AlignRight
+             verticalAlignment: Text.AlignVCenter
+             textFormat: Text.PlainText
+ 
+@@ -176,7 +180,7 @@ MouseArea {
+                 weight: main.baseFont.weight
+                 italic: main.baseFont.italic
+                 styleName: main.baseFont.styleName
+-                pixelSize: Math.round(timeLabel.font.pixelSize * 0.65)
++                pixelSize: timeLabel.font.pixelSize
+                 features: { "tnum": 1 }
+             }
+         }
+@@ -188,7 +192,7 @@ MouseArea {
+             Layout.fillWidth: true
+             Layout.preferredHeight: main.maxContentHeight * main.tzHeightRatio
+ 
+-            horizontalAlignment: Text.AlignHCenter
++            horizontalAlignment: Text.AlignRight
+             verticalAlignment: Text.AlignVCenter
+             textFormat: Text.PlainText
+ 
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
+index 93b62e2..4df128a 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
+@@ -62,8 +62,19 @@ Item {
+ 
+         property bool searching: bottomBarContent.searchText !== ""
+ 
+-        // Left-column state: 0 = pinned, 1 = all apps, 2 = search results
+-        property int leftColumnState: 0
++        // Left-column state: 0 = pinned, 1 = categorias/todos os apps (tela inicial), 2 = search results
++        property int leftColumnState: 1
++        property int previousLeftColumnState: 1
++
++        onLeftColumnStateChanged: {
++            if (visible) {
++                // Fixado fica "à direita" das categorias; pesquisa sobe de baixo.
++                pageShiftAnim.fromX = leftColumnState === 2 ? 0 : (leftColumnState === 0 ? 1 : -1) * Kirigami.Units.gridUnit * 2;
++                pageShiftAnim.fromY = leftColumnState === 2 ? Kirigami.Units.gridUnit : 0;
++                pageShiftAnim.restart();
++            }
++            previousLeftColumnState = leftColumnState;
++        }
+ 
+         onSearchingChanged: {
+             if (searching) {
+@@ -72,7 +83,7 @@ Item {
+                 searchPage.resultsView.contentY = 0;
+                 searchPage.resultsView.currentIndex = 0;
+             } else {
+-                leftColumnState = 0;
++                leftColumnState = 1;
+             }
+         }
+ 
+@@ -80,8 +91,9 @@ Item {
+             if (visible) {
+                 reposition();
+                 reset();
++                openAnimation.restart();
+             } else {
+-                leftColumnState = 0;
++                leftColumnState = 1;
+                 sharedContextMenu.close();
+                 powerMenu.close();
+             }
+@@ -101,7 +113,8 @@ Item {
+ 
+         function reset() {
+             bottomBarContent.searchText = "";
+-            leftColumnState = 0;
++            leftColumnState = 1;
++            allAppsPage.resetCategories();
+             // Reset the search filter pills to "All".
+             searchPage.resultsView.singleRunner = "";
+             // Defer focus until the dialog has finished laying out.
+@@ -162,6 +175,23 @@ Item {
+         FocusScope {
+             id: rootItem
+ 
++            // Animação de abertura estilo Windows 11: sobe e aparece com
++            // desaceleração. O KWin não anima diálogos "Floating".
++            transform: Translate { id: openShift }
++            ParallelAnimation {
++                id: pageShiftAnim
++                property real fromX: 0
++                property real fromY: 0
++                NumberAnimation { target: leftShift; property: "x"; from: pageShiftAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
++                NumberAnimation { target: leftShift; property: "y"; from: pageShiftAnim.fromY; to: 0; duration: 200; easing.type: Easing.OutCubic }
++                NumberAnimation { target: leftColumn; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++            }
++            ParallelAnimation {
++                id: openAnimation
++                NumberAnimation { target: openShift; property: "y"; from: Kirigami.Units.gridUnit * 3; to: 0; duration: 220; easing.type: Easing.OutCubic }
++                NumberAnimation { target: rootItem; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++            }
++
+             readonly property int leftColumnWidth: Kirigami.Units.gridUnit * 14
+             readonly property int rightColumnWidth: Kirigami.Units.gridUnit * 10
+             // Height derived from ~10 list rows + header + padding rather
+@@ -238,6 +268,7 @@ Item {
+                 // ── Left column: pinned / all-apps / search ─────────────────
+                 ColumnLayout {
+                     id: leftColumn
++                    transform: Translate { id: leftShift }
+                     Layout.fillWidth: true
+                     Layout.fillHeight: true
+                     Layout.preferredWidth: rootItem.leftColumnWidth
+@@ -508,6 +539,17 @@ Item {
+ 
+             // Rebuild the lookup map when the source model changes.
+             // Returns { favoriteId, url, actionList } or null.
++            // Linha do app no modelo de todos os apps (para disparar ações como
++            // "Editar aplicativo…" a partir de um resultado da pesquisa).
++            function appRowByDisplayName(displayName) {
++                for (var i = 0; i < sortedAppsModel.rowCount(); i++) {
++                    if (sortedAppsModel.data(sortedAppsModel.index(i, 0), Qt.DisplayRole) === displayName) {
++                        return i;
++                    }
++                }
++                return -1;
++            }
++
+             function lookupAppByDisplayName(displayName) {
+                 if (!displayName) return null;
+                 return rootItem._appLookupMap[displayName] || null;
+@@ -581,8 +623,10 @@ Item {
+                     event.accepted = true;
+                     if (root.searching) {
+                         reset();
+-                    } else if (root.leftColumnState === 1) {
+-                        root.leftColumnState = 0;
++                    } else if (root.leftColumnState === 1 && !allAppsPage.showingCategories) {
++                        allAppsPage.resetCategories();
++                    } else if (root.leftColumnState === 0) {
++                        root.leftColumnState = 1;
+                         bottomBarContent.focusSearch();
+                     } else {
+                         root.closeMenu();
+@@ -626,6 +670,11 @@ Item {
+             pinnedPage.favoritesList.model = globalFavorites;
+             sortedAppsModel.sourceModel = findRowModel(rootModel, "KICKER_ALL_MODEL");
+             allAppsPage.allAppsList.model = sortedAppsModel;
++            allAppsPage.appsRootModel = rootModel;
++            allAppsPage.proxyModel = sortedAppsModel;
++            allAppsPage.allModel = sortedAppsModel.sourceModel;
++            allAppsPage.categoryRow = -2;
++            allAppsPage.rebuildCategories();
+         }
+ 
+         // Locate a rootModel child row by its description.  The Kicker
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
+index 22eeace..9a2a8d3 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
+@@ -26,25 +26,104 @@ ColumnLayout {
+     signal backRequested
+     signal keyNavUpFromList
+ 
++    // ── Categorias (estilo Kickoff) ─────────────────────────────────────
++    // categoryRow: -2 = lista de categorias, -1 = todos os apps,
++    // >= 0 = linha da categoria no rootModel do Kicker.
++    property var appsRootModel: null
++    property var proxyModel: null
++    property var allModel: null
++    property int categoryRow: -2
++    property string categoryName: ""
++    property var categories: []
++
++    readonly property bool showingCategories: categoryRow === -2
++    readonly property var activeList: showingCategories ? categoryListView : allAppsListView
++
++    function rebuildCategories() {
++        var list = [{ row: -1, name: i18n("All applications"), icon: "applications-all" }];
++        var m = appsRootModel;
++        if (m) {
++            for (var i = 0; i < m.rowCount(); i++) {
++                var sub = m.modelForRow(i);
++                if (!sub) continue;
++                var d = sub.description || "";
++                if (d.indexOf("KICKER_") === 0) continue;
++                var idx = m.index(i, 0);
++                list.push({ row: i, name: m.data(idx, Qt.DisplayRole), icon: m.data(idx, Qt.DecorationRole) });
++            }
++        }
++        categories = list;
++    }
++
++    function openCategory(c) {
++        if (!proxyModel) return;
++        proxyModel.sourceModel = c.row < 0 ? allModel : appsRootModel.modelForRow(c.row);
++        categoryName = c.name;
++        categoryRow = c.row;
++        allAppsListView.currentIndex = -1;
++        allAppsListView.positionViewAtBeginning();
++        slideIn(allAppsListView, appsShift, Kirigami.Units.gridUnit * 2);
++    }
++
++    function resetCategories() {
++        if (proxyModel && allModel) proxyModel.sourceModel = allModel;
++        categoryRow = -2;
++        categoryListView.currentIndex = -1;
++    }
++
++    function goBack() {
++        if (showingCategories) {
++            allAppsPage.backRequested();
++        } else {
++            resetCategories();
++            slideIn(categoryListView, catShift, -Kirigami.Units.gridUnit * 2);
++        }
++    }
++
++    onVisibleChanged: if (!visible) resetCategories()
++
++    // Transições estilo Windows 11: a lista nova entra deslizando e aparecendo.
++    function slideIn(target, shift, fromX) {
++        slideAnim.stop();
++        slideAnim.target = target;
++        slideAnim.shift = shift;
++        slideAnim.fromX = fromX;
++        slideAnim.start();
++    }
++    ParallelAnimation {
++        id: slideAnim
++        property Item target
++        property Translate shift
++        property real fromX: 0
++        NumberAnimation { target: slideAnim.shift; property: "x"; from: slideAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
++        NumberAnimation { target: slideAnim.target; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++    }
++
+     function tryActivate(row) {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.min(row, allAppsListView.count - 1);
++        if (activeList.count > 0) {
++            activeList.currentIndex = Math.min(row, activeList.count - 1);
+         }
+     }
+ 
+     function navigateUp() {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.max(0, allAppsListView.currentIndex - 1);
++        if (activeList.count > 0) {
++            activeList.currentIndex = Math.max(0, activeList.currentIndex - 1);
+         }
+     }
+ 
+     function navigateDown() {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.min(allAppsListView.count - 1, allAppsListView.currentIndex + 1);
++        if (activeList.count > 0) {
++            activeList.currentIndex = Math.min(activeList.count - 1, activeList.currentIndex + 1);
+         }
+     }
+ 
+     function activateCurrent() {
++        if (showingCategories) {
++            if (categoryListView.currentIndex >= 0) {
++                openCategory(categories[categoryListView.currentIndex]);
++            }
++            return;
++        }
+         if (allAppsListView.currentIndex >= 0 && allAppsListView.model) {
+             allAppsListView.model.trigger(allAppsListView.currentIndex, "", null);
+             root.closeMenu();
+@@ -58,7 +137,7 @@ ColumnLayout {
+         spacing: Kirigami.Units.smallSpacing
+ 
+         PlasmaComponents3.Label {
+-            text: i18n("All apps")
++            text: allAppsPage.showingCategories ? i18n("Categories") : allAppsPage.categoryName
+             color: Kirigami.Theme.textColor
+             font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.95
+             font.weight: Font.DemiBold
+@@ -69,17 +148,99 @@ ColumnLayout {
+ 
+         AToolButton {
+             flat: true
+-            iconName: "go-previous"
+-            text: i18n("Back")
++            iconName: allAppsPage.showingCategories ? "go-next" : "go-previous"
++            text: allAppsPage.showingCategories ? i18n("Pinned") : i18n("Back")
+             buttonHeight: 25
+             Layout.rightMargin: Kirigami.Units.mediumSpacing
+-            onClicked: allAppsPage.backRequested()
++            onClicked: allAppsPage.goBack()
++        }
++    }
++
++    // ── Lista de categorias ──────────────────────────────────────────────
++    ListView {
++        id: categoryListView
++        visible: allAppsPage.showingCategories
++        transform: Translate { id: catShift }
++        Layout.fillWidth: true
++        Layout.fillHeight: true
++        clip: true
++        spacing: Kirigami.Units.smallSpacing / 2
++        boundsBehavior: Flickable.StopAtBounds
++        currentIndex: -1
++        model: allAppsPage.categories
++        highlightMoveDuration: 0
++
++        PlasmaComponents3.ScrollBar.vertical: PlasmaComponents3.ScrollBar {
++            policy: PlasmaComponents3.ScrollBar.AsNeeded
++        }
++
++        delegate: Item {
++            id: catItem
++            required property var modelData
++            required property int index
++            width: ListView.view.width
++            height: Math.floor(Kirigami.Units.gridUnit * 1.5)
++
++            Rectangle {
++                anchors.fill: parent
++                radius: Kirigami.Units.smallSpacing
++                color: Kirigami.Theme.hoverColor
++                opacity: catMouse.containsMouse ? 1 : (catItem.ListView.isCurrentItem ? 0.6 : 0)
++            }
++
++            Row {
++                anchors.verticalCenter: parent.verticalCenter
++                anchors.left: parent.left
++                anchors.right: parent.right
++                anchors.leftMargin: Kirigami.Units.largeSpacing
++                anchors.rightMargin: Kirigami.Units.largeSpacing
++                spacing: Kirigami.Units.largeSpacing
++
++                Kirigami.Icon {
++                    id: catIcon
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: Kirigami.Units.iconSizes.smallMedium
++                    height: width
++                    source: catItem.modelData.icon
++                }
++                PlasmaComponents3.Label {
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: parent.width - catIcon.width - catArrow.width - parent.spacing * 2
++                    text: catItem.modelData.name
++                    elide: Text.ElideRight
++                    color: Kirigami.Theme.textColor
++                }
++                Kirigami.Icon {
++                    id: catArrow
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: Kirigami.Units.iconSizes.small
++                    height: width
++                    source: "go-next"
++                    opacity: 0.6
++                }
++            }
++
++            MouseArea {
++                id: catMouse
++                anchors.fill: parent
++                hoverEnabled: true
++                onClicked: allAppsPage.openCategory(catItem.modelData)
++            }
++        }
++
++        Keys.onUpPressed: event => {
++            if (currentIndex <= 0) {
++                event.accepted = true;
++                allAppsPage.keyNavUpFromList();
++            }
+         }
+     }
+ 
+     // ── All apps vertical list ───────────────────────────────────────────
+     ListView {
+         id: allAppsListView
++        visible: !allAppsPage.showingCategories
++        transform: Translate { id: appsShift }
+         Layout.fillWidth: true
+         Layout.fillHeight: true
+         clip: true
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
+index d742aa4..f860a27 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
+@@ -70,7 +70,7 @@ ColumnLayout {
+             buttonHeight: 25
+             flat: true
+             iconName: "go-next"
+-            text: i18n("All apps")
++            text: i18n("Categories")
+             Layout.rightMargin: Kirigami.Units.mediumSpacing
+             onClicked: pinnedPage.showAllAppsRequested()
+         }
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml
+index e59c813..06b09f1 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml
+@@ -358,7 +358,7 @@ Item {
+                     // Resolved: route favorite/model actions through the
+                     // all-apps model so triggerAction() works correctly.
+                     ctx.resolvedModel = sortedAppsModel
+-                    ctx.resolvedIndex = -1
++                    ctx.resolvedIndex = rootItem.appRowByDisplayName(displayName)
+ 
+                     var appActs = Tools.buildAppActions(i18n, favModel,
+                                                         entry.favoriteId,
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
+index bd04add..ee46770 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
+@@ -29,6 +29,10 @@
+     <entry name="knownItems" type="StringList" hidden="true">
+       <default></default>
+     </entry>
++    <entry name="itemOrder" type="StringList">
++      <label>User-defined order of the visible tray items (drag and drop)</label>
++      <default></default>
++    </entry>
+     <entry name="reverseIconOrder" type="bool">
+       <label>Whether to reverse the order of icons in the panel</label>
+       <default>false</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
+index 1380039..0c15c91 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
+@@ -26,7 +26,7 @@ ContainmentItem {
+     Layout.minimumWidth: vertical ? Kirigami.Units.iconSizes.small : mainLayout.implicitWidth + Kirigami.Units.smallSpacing
+     Layout.minimumHeight: vertical ? mainLayout.implicitHeight + Kirigami.Units.smallSpacing : Kirigami.Units.iconSizes.small
+ 
+-    LayoutMirroring.enabled: !vertical && ((Application.layoutDirection === Qt.RightToLeft) !== reverseLayout)
++    LayoutMirroring.enabled: !vertical && Application.layoutDirection === Qt.RightToLeft
+     LayoutMirroring.childrenInherit: true
+ 
+     readonly property alias systemTrayState: systemTrayState
+@@ -53,6 +53,26 @@ ContainmentItem {
+         }
+     }
+ 
++    Binding {
++        target: Plasmoid.systemTrayModel
++        property: "itemOrder"
++        value: Plasmoid.configuration.itemOrder
++    }
++
++    // Move o item visível `from` para a posição `to` e salva a ordem completa.
++    function moveTrayItem(from: int, to: int) {
++        if (from === to || from < 0 || to < 0) return;
++        const ids = [];
++        for (let i = 0; i < activeModel.rowCount(); ++i) {
++            ids.push(activeModel.data(activeModel.index(i, 0), Qt.UserRole + 2));
++        }
++        const [moved] = ids.splice(from, 1);
++        ids.splice(Math.min(to, ids.length), 0, moved);
++        // Mantém a posição salva de itens que estão escondidos agora.
++        const rest = Plasmoid.configuration.itemOrder.filter(id => ids.indexOf(id) === -1);
++        Plasmoid.configuration.itemOrder = ids.concat(rest);
++    }
++
+     KItemModels.KSortFilterProxyModel {
+         id: activeModel
+         filterRoleName: "effectiveStatus"
+@@ -179,7 +199,7 @@ ContainmentItem {
+                 id: tasksGrid
+ 
+                 Layout.row: root.vertical && root.reverseLayout ? 1 : 0 // Explicitly define grid coordinates
+-                Layout.column: 0                                        // to prevent overlapping
++                Layout.column: !root.vertical && root.reverseLayout ? 1 : 0 // to prevent overlapping
+ 
+                 Layout.alignment: Qt.AlignCenter
+ 
+@@ -237,6 +257,32 @@ ContainmentItem {
+                     width: tasksGrid.cellWidth
+                     height: tasksGrid.cellHeight
+ 
++                    // Arrastar e soltar: segurar e arrastar move o ícone; clique continua normal.
++                    readonly property real dragOffset: trayDrag.active
++                        ? (root.vertical ? trayDrag.activeTranslation.y : trayDrag.activeTranslation.x) : 0
++                    transform: Translate {
++                        x: root.vertical ? 0 : delegate.dragOffset
++                        y: root.vertical ? delegate.dragOffset : 0
++                    }
++                    opacity: trayDrag.active ? 0.7 : 1
++                    DragHandler {
++                        id: trayDrag
++                        target: null
++                        xAxis.enabled: !root.vertical
++                        yAxis.enabled: root.vertical
++                        onActiveChanged: {
++                            if (active) {
++                                delegate.z = 1000;
++                                return;
++                            }
++                            delegate.z = delegate.x + 1;
++                            const cell = root.vertical ? tasksGrid.cellHeight : tasksGrid.cellWidth;
++                            const steps = Math.round(delegate.dragOffset / cell);
++                            const to = Math.max(0, Math.min(tasksGrid.count - 1, delegate.index + steps));
++                            root.moveTrayItem(delegate.index, to);
++                        }
++                    }
++
+                     // We need to recalculate the stacking order of the z values due to how keyboard navigation works
+                     // the tab order depends exclusively from this, so we redo it as the position in the list
+                     // ensuring tab navigation focuses the expected items
+@@ -258,7 +304,7 @@ ContainmentItem {
+                 id: expander
+ 
+                 Layout.row: root.vertical && !root.reverseLayout ? 1 : 0 // Explicitly define grid coordinates
+-                Layout.column: root.vertical ? 0 : 1                     // to prevent overlapping
++                Layout.column: root.vertical ? 0 : (root.reverseLayout ? 0 : 1) // to prevent overlapping
+ 
+                 Layout.fillWidth: vertical
+                 Layout.fillHeight: !vertical
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp b/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp
+index 0e2c55d..da1313e 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp
+@@ -18,6 +18,13 @@ static const QList<QString> s_categoryOrder = {
+ SortedSystemTrayModel::SortedSystemTrayModel(SortingType sorting, QObject *parent)
+     : QSortFilterProxyModel(parent), m_sorting(sorting) { setSortLocaleAware(true); sort(0); }
+ 
++void SortedSystemTrayModel::setItemOrder(const QStringList &order) {
++    if (order == m_itemOrder) return;
++    m_itemOrder = order;
++    invalidate();
++    Q_EMIT itemOrderChanged();
++}
++
+ bool SortedSystemTrayModel::lessThan(const QModelIndex &left, const QModelIndex &right) const {
+     switch (m_sorting) {
+     case SortingType::ConfigurationPage: return lessThanConfigurationPage(left, right);
+@@ -36,6 +43,13 @@ bool SortedSystemTrayModel::lessThanSystemTray(const QModelIndex &left, const QM
+     QVariant rid = right.data(static_cast<int>(BaseModel::BaseRole::ItemId));
+     if (rid.toString() == QLatin1String("org.kde.plasma.notifications")) return false;
+     if (lid.toString() == QLatin1String("org.kde.plasma.notifications")) return true;
++    const int lo = m_itemOrder.indexOf(lid.toString());
++    const int ro = m_itemOrder.indexOf(rid.toString());
++    if (lo != -1 || ro != -1) {
++        if (lo == -1) return true;
++        if (ro == -1) return false;
++        return lo < ro;
++    }
+     int cmp = compareCategoriesOrderly(left, right);
+     return cmp == 0 ? QSortFilterProxyModel::lessThan(left, right) : cmp < 0;
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.h b/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.h
+index d5cabb0..9d48223 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.h
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.h
+@@ -7,6 +7,14 @@
+ 
+ class SortedSystemTrayModel : public QSortFilterProxyModel {
+     Q_OBJECT
++    // Ordem escolhida pelo usuário (arrastar e soltar na bandeja). Itens fora
++    // da lista — apps recém-abertos — entram à esquerda, como no Windows.
++    Q_PROPERTY(QStringList itemOrder READ itemOrder WRITE setItemOrder NOTIFY itemOrderChanged)
++public:
++    QStringList itemOrder() const { return m_itemOrder; }
++    void setItemOrder(const QStringList &order);
++Q_SIGNALS:
++    void itemOrderChanged();
+ public:
+     enum class SortingType { ConfigurationPage, SystemTray };
+     explicit SortedSystemTrayModel(SortingType sorting, QObject *parent = nullptr);
+@@ -18,4 +26,5 @@ private:
+     int compareCategoriesAlphabetically(const QModelIndex &left, const QModelIndex &right) const;
+     int compareCategoriesOrderly(const QModelIndex &left, const QModelIndex &right) const;
+     SortingType m_sorting;
++    QStringList m_itemOrder;
+ };
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp b/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
+index 76e1af1..2f3aa2a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
+@@ -11,6 +11,9 @@
+ 
+ #include "plasmoidregistry.h"
+ #include "sortedsystemtraymodel.h"
++#include <QProcess>
++#include <QDir>
++#include <QFileInfo>
+ #include "statusnotifieritemhost.h"
+ #include "statusnotifieritemsource.h"
+ #include "systemtraymodel.h"
+@@ -204,6 +207,17 @@ void SystemTray::showPlasmoidMenu(QQuickItem *appletInterface, int x, int y)
+         desktopMenu->addAction(applet->internalAction(QStringLiteral("configure")));
+     }
+ 
++    // Abre o utilitário "Ícones do painel" direto no ícone deste item.
++    const QString tool = QDir::homePath() + QStringLiteral("/.local/bin/icones-painel");
++    if (const QString icon = applet->icon(); !icon.isEmpty() && QFileInfo::exists(tool)) {
++        desktopMenu->addSeparator();
++        QAction *changeIcon = desktopMenu->addAction(QIcon::fromTheme(QStringLiteral("preferences-desktop-icons")),
++                                                     QStringLiteral("Alterar ícone…"));
++        connect(changeIcon, &QAction::triggered, this, [tool, icon]() {
++            QProcess::startDetached(tool, {icon});
++        });
++    }
++
+     if (desktopMenu->isEmpty()) {
+         delete desktopMenu;
+         return;

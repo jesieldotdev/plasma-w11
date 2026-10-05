@@ -1,0 +1,166 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgid "Lock"
+msgstr "Bloquear"
+
+msgid "Log out"
+msgstr "Sair"
+
+msgid "Sleep"
+msgstr "Suspender"
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Shut down"
+msgstr "Desligar"
+
+msgid "Search programs and files"
+msgstr "Pesquise aplicativos, configurações e documentos"
+
+msgid "All"
+msgstr "Tudo"
+
+msgid "Apps"
+msgstr "Aplicativos"
+
+msgid "Files"
+msgstr "Arquivos"
+
+msgid "Settings"
+msgstr "Configurações"
+
+msgid "Actions"
+msgstr "Ações"
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Places"
+msgstr "Locais"
+
+msgid "Edit Applications…"
+msgstr "Editar aplicativos…"
+
+msgid "All apps"
+msgstr "Todos os aplicativos"
+
+msgid "Back"
+msgstr "Voltar"
+
+msgid "Pinned"
+msgstr "Fixado"
+
+msgid "Remove from Favorites"
+msgstr "Desafixar de Iniciar"
+
+msgid "Add to Favorites"
+msgstr "Fixar em Iniciar"
+
+msgid "On All Activities"
+msgstr "Em todas as atividades"
+
+msgid "On the Current Activity"
+msgstr "Na atividade atual"
+
+msgid "Show in Favorites"
+msgstr "Mostrar em Fixado"
+
+msgid "Home"
+msgstr "Pasta pessoal"
+
+msgid "Documents"
+msgstr "Documentos"
+
+msgid "Pictures"
+msgstr "Imagens"
+
+msgid "Music"
+msgstr "Músicas"
+
+msgid "Downloads"
+msgstr "Downloads"
+
+msgid "Recent Items"
+msgstr "Itens recentes"
+
+msgid "This PC"
+msgstr "Este Computador"
+
+msgid "Update"
+msgstr "Atualizações"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Run..."
+msgstr "Executar..."
+
+msgid "Icon:"
+msgstr "Ícone:"
+
+msgid "Menu position"
+msgstr "Posição do menu"
+
+msgid "Default"
+msgstr "Padrão"
+
+msgid "Center"
+msgstr "Centro"
+
+msgid "Center bottom"
+msgstr "Centro inferior"
+
+msgid "Left bottom"
+msgstr "Inferior esquerdo"
+
+msgid "Show places column"
+msgstr "Mostrar coluna de locais"
+
+msgid "All apps sort"
+msgstr "Ordenar todos os aplicativos"
+
+msgid "Name (A-Z)"
+msgstr "Nome (A-Z)"
+
+msgid "Name (Z-A)"
+msgstr "Nome (Z-A)"
+
+msgid "Newest first"
+msgstr "Mais novos primeiro"
+
+msgid "Oldest first"
+msgstr "Mais antigos primeiro"
+
+msgid "Category"
+msgstr "Categoria"
+
+msgid "Menu translucency"
+msgstr "Translucidez do menu"
+
+msgid "Follow desktop theme"
+msgstr "Seguir tema da área de trabalho"
+
+msgid "Translucent"
+msgstr "Translúcido"
+
+msgid "Opaque"
+msgstr "Opaco"
+
+msgctxt "@item:inmenu Open icon chooser dialog"
+msgid "Choose…"
+msgstr "Escolher…"
+
+msgctxt "@item:inmenu Reset icon to default"
+msgid "Clear Icon"
+msgstr "Limpar ícone"
+
+msgid "All applications"
+msgstr "Todos os aplicativos"
+
+msgid "Categories"
+msgstr "Categorias"
+

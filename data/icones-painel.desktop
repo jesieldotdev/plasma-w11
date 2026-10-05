@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Ícones do painel
+Comment=Trocar os ícones da bandeja (Wi-Fi, volume, bateria...)
+Exec=@BIN@/icones-painel
+Icon=preferences-desktop-icons
+Categories=Settings;DesktopSettings;

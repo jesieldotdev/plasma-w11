@@ -1,0 +1,529 @@
+#!/usr/bin/env python3
+"""Ícones do painel — troca os ícones da bandeja (Wi-Fi, volume, bateria...).
+
+Cada variação (play/pause, cada nível de bateria, Wi-Fi...) pode ser trocada
+separadamente. As trocas ficam no tema ~/.local/share/icons/Windows-11-Custom,
+que herda do Windows-11-Fluent; restaurar = apagar a troca. Uso:
+    icones-painel              abre a janela
+    icones-painel <ícone>      abre já na variação desse ícone (usado pela bandeja)
+"""
+import os, re, shutil, subprocess, sys
+from xml.dom import minidom
+from xml.parsers.expat import ExpatError
+
+from PySide6.QtCore import Qt, QByteArray, QSize
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QPalette
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import (QApplication, QCheckBox, QColorDialog, QFileDialog, QMenu, QHBoxLayout, QLabel, QListWidget,
+                               QListWidgetItem, QMessageBox, QPushButton, QSlider, QSplitter, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
+
+HOME = os.path.expanduser('~')
+BASE = f'{HOME}/.local/share/icons/Windows-11-Fluent'
+CUSTOM = f'{HOME}/.local/share/icons/Windows-11-Custom'
+TITLE = 'Ícones do painel'
+
+BAT_NAMED = {'empty': 0, 'caution': 10, 'low': 20, 'medium': 50, 'good': 70, 'full': 100}
+
+
+def battery_variants(charging):
+    out = []
+    for pct in range(0, 101, 10):
+        named = '|'.join(k for k, v in BAT_NAMED.items() if v == pct)
+        if charging:
+            rx = rf'battery-{pct:03d}-(charging|charged)'
+            if named:
+                rx += rf'|battery-({named})-(charging|charged)'
+            if pct == 100:
+                rx += r'|battery_charged|battery-profile.*|power-profile.*'
+        else:
+            rx = rf'battery-{pct:03d}' + (rf'|battery-({named})' if named else '')
+        out.append((f'{pct}%', rx))
+    return out
+
+
+# grupo -> [(variação, regex sobre o nome sem -symbolic/-panel)]
+GROUPS = [
+    ('Wi-Fi', [
+        ('Sinal fraco', r'network-wireless-(0|20)(-locked)?|network-wireless(-secure)?-signal-(none|weak)|network-wireless-acquiring'),
+        ('Sinal médio', r'network-wireless-40(-locked)?|network-wireless(-secure)?-signal-low'),
+        ('Sinal bom', r'network-wireless-(60|80)(-locked)?|network-wireless(-secure)?-signal-(ok|good)'),
+        ('Sinal cheio', r'network-wireless-100(-locked)?|network-wireless(-secure)?-signal-excellent|network-wireless(-connected|-hotspot)?'),
+        ('Sem conexão', r'network-wireless-(offline|disconnected)|network-offline|network-wired-(disconnected|no-route|unavailable)'),
+        ('Cabo de rede', r'network-wired(-acquiring|-activated|-available)?'),
+    ]),
+    ('Volume', [
+        ('Alto', r'audio-volume-high'), ('Médio', r'audio-volume-medium'), ('Baixo', r'audio-volume-low'),
+        ('Zero', r'audio-volume-low-zero'), ('Mudo', r'audio-volume-(muted.*|off)'),
+    ]),
+    ('Bateria (descarregando)', battery_variants(False)),
+    ('Bateria (carregando / na tomada)', battery_variants(True)),
+    ('Bluetooth', [
+        ('Ligado', r'bluetooth(?!-(disabled|offline|inactive)).*'),
+        ('Desligado', r'bluetooth-(disabled|offline|inactive)'),
+    ]),
+    ('Mídia', [
+        ('Tocando', r'media-playback-(start|playing)'),
+        ('Pausado', r'media-playback-(pause|paused)'),
+    ]),
+    ('Luz noturna', [
+        ('Ligada', r'redshift-status-on|night-light'),
+        ('Desligada', r'redshift-status-off|night-light-disabled'),
+    ]),
+    ('Outros', [
+        ('USB / dispositivos', r'media-removable|drive-removable-media(-usb)?|device-notifier'),
+        ('Área de transferência', r'klipper'),
+        ('Brilho', r'brightness.*|video-display-brightness|display-brightness.*'),
+    ]),
+]
+
+
+def base_name(f):
+    return re.sub(r'-(symbolic|panel)$', '', os.path.splitext(f)[0])
+
+
+def names_for(rx):
+    """Arquivos (do tema base) que uma variação cobre."""
+    r = re.compile(rx)
+    return sorted(f for f in os.listdir(f'{BASE}/status') if f.endswith('.svg') and r.fullmatch(base_name(f)))
+
+
+def custom_files(rx):
+    r = re.compile(rx)
+    d = f'{CUSTOM}/status'
+    return [f'{d}/{f}' for f in (os.listdir(d) if os.path.isdir(d) else []) if r.fullmatch(base_name(f))]
+
+
+def current_file(rx):
+    files = names_for(rx)
+    if not files:
+        return None
+    for ext in ('.svg', '.svgz', '.png'):
+        p = f'{CUSTOM}/status/{files[0][:-4]}{ext}'
+        if os.path.exists(p):
+            return p
+    return f'{BASE}/status/{files[0]}'
+
+
+def find_variant(icon):
+    n = re.sub(r'-(symbolic|panel)$', '', icon)
+    for gi, (_, variants) in enumerate(GROUPS):
+        for vi, (_, rx) in enumerate(variants):
+            if re.fullmatch(rx, n):
+                return gi, vi
+    return None
+
+
+SHAPES = r'(path|rect|circle|ellipse|line|polyline|polygon|use|text)'
+
+
+def recolor(svg):
+    """SVGs com currentColor (Lucide, Tabler...) passam a seguir a cor do tema.
+
+    A classe de cor vai em cada forma e na raiz, somada ao class que já
+    existir (atributo duplicado deixa o XML inválido e o ícone some)."""
+    if 'currentColor' not in svg or 'ColorScheme-Text' in svg:
+        return svg
+
+    def add_class(m):
+        tag = m.group(0)
+        if re.search(r'\sclass\s*=\s*"', tag):
+            return re.sub(r'(\sclass\s*=\s*")', r'\1ColorScheme-Text ', tag, count=1)
+        return re.sub(rf'^<{SHAPES}\b', lambda t: t.group(0) + ' class="ColorScheme-Text"', tag)
+
+    # Atributos com currentColor declarados na raiz (Lucide: stroke) são
+    # repetidos em cada forma — o Qt só resolve currentColor no próprio elemento.
+    root = re.search(r'<svg\b[^>]*>', svg)
+    inherited = [k for k in ('fill', 'stroke') if root and re.search(rf'\s{k}\s*=\s*"currentColor"', root.group(0))]
+
+    def own_color(m):
+        tag = m.group(0)
+        for k in inherited:
+            if not re.search(rf'\s{k}\s*=', tag):
+                tag = re.sub(rf'^<{SHAPES}\b', lambda t: t.group(0) + f' {k}="currentColor"', tag)
+        return tag
+
+    svg = re.sub(rf'<{SHAPES}\b[^>]*>', own_color, svg)
+    svg = re.sub(rf'<{SHAPES}\b[^>]*>', add_class, svg)
+    # A raiz também: atributos herdados (stroke="currentColor" da Lucide) são
+    # resolvidos pelo Qt no elemento que os declara.
+    root = re.search(r'<svg\b[^>]*>', svg)
+    if root:
+        tag = root.group(0)
+        if re.search(r'\sclass\s*=\s*"', tag):
+            tag = re.sub(r'(\sclass\s*=\s*")', r'\1ColorScheme-Text ', tag, count=1)
+        else:
+            tag = tag.replace('<svg', '<svg class="ColorScheme-Text"', 1)
+        svg = svg[:root.start()] + tag + svg[root.end():]
+    return re.sub(r'(<svg\b[^>]*>)',
+                  r'\1<style id="current-color-scheme">.ColorScheme-Text{color:#ffffff;}</style>', svg, count=1)
+
+
+def preview(path, color, size=32):
+    """Renderiza com a cor do texto, como o painel faz."""
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    if not path:
+        return pm
+    if path.endswith('.png'):
+        return QPixmap(path).scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    try:
+        svg = open(path, encoding='utf-8').read()
+    except (OSError, UnicodeDecodeError):
+        return QIcon(path).pixmap(size, size)
+    svg = re.sub(r'(ColorScheme-Text\s*\{\s*color\s*:\s*)#[0-9a-fA-F]{3,8}', rf'\g<1>{color}', recolor(svg))
+    r = QSvgRenderer(QByteArray(svg.encode()))
+    p = QPainter(pm)
+    r.render(p)
+    p.end()
+    return pm
+
+
+def resolve_icon(name):
+    """Acha o arquivo de um ícone escolhido no seletor (procura nos temas instalados)."""
+    roots = [f'{HOME}/.local/share/icons', f'{HOME}/.icons', '/usr/share/icons']
+    themes = ['Windows-11-Fluent', 'windows-modern', 'breeze-dark', 'breeze', 'hicolor']
+    themes += sorted({t for r in roots if os.path.isdir(r) for t in os.listdir(r)} - set(themes))
+    png = None
+    for t in themes:
+        for root in roots:
+            d = f'{root}/{t}'
+            if not os.path.isdir(d):
+                continue
+            for dirpath, _, files in os.walk(d):
+                if name + '.svg' in files:
+                    return f'{dirpath}/{name}.svg'
+                if not png and name + '.png' in files:
+                    png = f'{dirpath}/{name}.png'
+    return png
+
+
+def ensure_theme():
+    os.makedirs(f'{CUSTOM}/status', exist_ok=True)
+    idx = f'{CUSTOM}/index.theme'
+    if not os.path.exists(idx):
+        open(idx, 'w').write(
+            '[Icon Theme]\nName=Windows 11 (personalizado)\nComment=Trocas feitas em "Ícones do painel"\n'
+            'Inherits=Windows-11-Fluent,windows-modern,breeze-dark,hicolor\nFollowsColorScheme=true\n'
+            'Directories=status\n\n[status]\nContext=Status\nType=Scalable\nSize=22\nMinSize=8\nMaxSize=512\n')
+    theme = subprocess.run(['kreadconfig6', '--file', 'kdeglobals', '--group', 'Icons', '--key', 'Theme'],
+                           capture_output=True, text=True).stdout.strip()
+    if theme != 'Windows-11-Custom':
+        subprocess.run(['/usr/libexec/plasma-changeicons', 'Windows-11-Custom'], capture_output=True)
+
+
+def apply(rx, src):
+    ensure_theme()
+    for f in custom_files(rx):
+        os.remove(f)
+    if src.endswith('.svg'):
+        data = recolor(open(src, encoding='utf-8').read())
+        minidom.parseString(data)  # SVG inválido vira ícone invisível: falha antes de gravar
+        for t in names_for(rx):
+            open(f'{CUSTOM}/status/{t}', 'w', encoding='utf-8').write(data)
+    else:
+        ext = os.path.splitext(src)[1]
+        for t in names_for(rx):
+            shutil.copyfile(src, f'{CUSTOM}/status/{t[:-4]}{ext}')
+
+
+def _svg_tag(svg):
+    m = re.search(r'<svg\b[^>]*>', svg)
+    return m, (m.group(0) if m else '')
+
+
+def _attr(tag, name):
+    m = re.search(rf'\s{name}\s*=\s*"([^"]*)"', tag)
+    return m.group(1) if m else None
+
+
+def _set_attr(tag, name, value):
+    if _attr(tag, name) is not None:
+        return re.sub(rf'(\s{name}\s*=\s*)"[^"]*"', lambda m: f'{m.group(1)}"{value}"', tag, count=1)
+    return tag[:-1].rstrip('/') + f' {name}="{value}"' + ('/>' if tag.endswith('/>') else '>')
+
+
+def get_scale(rx):
+    f = current_file(rx)
+    if not f or not f.endswith('.svg'):
+        return None if f and f.endswith('.png') else 1.0
+    _, tag = _svg_tag(open(f, encoding='utf-8').read())
+    return float(_attr(tag, 'data-icones-scale') or 1)
+
+
+def set_scale(rx, scale):
+    """Tamanho por "zoom" no viewBox: o desenho não é alterado e dá pra voltar a 100%."""
+    ensure_theme()
+    for t in names_for(rx):
+        dst = f'{CUSTOM}/status/{t}'
+        if os.path.exists(f'{CUSTOM}/status/{t[:-4]}.png'):
+            continue
+        src = dst if os.path.exists(dst) else f'{BASE}/status/{t}'
+        svg = open(src, encoding='utf-8').read()
+        m, tag = _svg_tag(svg)
+        if not m:
+            continue
+        orig = _attr(tag, 'data-icones-viewbox') or _attr(tag, 'viewBox')
+        if not orig:
+            w = re.sub(r'[^0-9.]', '', _attr(tag, 'width') or '22') or '22'
+            h = re.sub(r'[^0-9.]', '', _attr(tag, 'height') or w) or w
+            orig = f'0 0 {w} {h}'
+        x, y, w, h = (float(v) for v in re.split(r'[\s,]+', orig.strip()))
+        nw, nh = w / scale, h / scale
+        vb = f'{x + (w - nw) / 2:.3f} {y + (h - nh) / 2:.3f} {nw:.3f} {nh:.3f}'
+        tag = _set_attr(_set_attr(_set_attr(tag, 'viewBox', vb), 'data-icones-viewbox', orig),
+                        'data-icones-scale', f'{scale:g}')
+        open(dst, 'w', encoding='utf-8').write(svg[:m.start()] + tag + svg[m.end():])
+
+
+COLOR_STYLE = r'<style\b[^>]*\bid="(current-color-scheme|icones-fixed-color)"[^>]*>(.*?)</style>'
+
+
+def get_color(rx):
+    """Cor fixa do ícone, ou None se ele segue o tema."""
+    f = current_file(rx)
+    if not f or not f.endswith('.svg'):
+        return None
+    m = re.search(COLOR_STYLE, open(f, encoding='utf-8').read(), re.S)
+    if m and m.group(1) == 'icones-fixed-color':
+        c = re.search(r'#[0-9a-fA-F]{6}', m.group(2))
+        return c.group(0) if c else None
+    return None
+
+
+def set_color(rx, color):
+    """color=None: segue o tema. Com cor: o bloco de estilo troca de id e o KDE
+    deixa de recolorir (ele só substitui o <style id="current-color-scheme">)."""
+    ensure_theme()
+    for t in names_for(rx):
+        dst = f'{CUSTOM}/status/{t}'
+        if os.path.exists(f'{CUSTOM}/status/{t[:-4]}.png'):
+            continue
+        src = dst if os.path.exists(dst) else f'{BASE}/status/{t}'
+        svg = open(src, encoding='utf-8').read()
+        if not re.search(COLOR_STYLE, svg, re.S):
+            continue
+        if color:
+            css = ('.ColorScheme-Text,.ColorScheme-Highlight,.ColorScheme-PositiveText,'
+                   f'.ColorScheme-NeutralText,.ColorScheme-NegativeText{{color:{color};}}')
+            new = f'<style id="icones-fixed-color">{css}</style>'
+        else:
+            new = '<style id="current-color-scheme">.ColorScheme-Text{color:#ffffff;}</style>'
+        svg = re.sub(COLOR_STYLE, lambda _: new, svg, count=1, flags=re.S)
+        open(dst, 'w', encoding='utf-8').write(svg)
+
+
+def restore(rx):
+    for f in custom_files(rx):
+        os.remove(f)
+
+
+class Window(QWidget):
+    def __init__(self, start=None):
+        super().__init__()
+        self.setWindowTitle(TITLE)
+        self.setWindowIcon(QIcon.fromTheme('preferences-desktop-icons'))
+        self.resize(800, 540)
+        self.changed = False
+        self.text_color = self.palette().color(QPalette.WindowText).name()
+
+        self.groups = QListWidget()
+        for name, _ in GROUPS:
+            self.groups.addItem(name)
+        self.groups.currentRowChanged.connect(self.fill_variants)
+
+        self.variants = QTreeWidget()
+        self.variants.setHeaderLabels(['Variação', 'Situação'])
+        self.variants.setIconSize(QSize(32, 32))
+        self.variants.setRootIsDecorated(False)
+        self.variants.setColumnWidth(0, 260)
+        self.variants.itemSelectionChanged.connect(self.update_buttons)
+        self.variants.itemDoubleClicked.connect(lambda *_: self.pick_theme())
+
+        self.all_group = QCheckBox('Aplicar a todas as variações do grupo')
+        self.b_theme = QPushButton(QIcon.fromTheme('preferences-desktop-icons'), 'Escolher do tema…')
+        self.b_file = QPushButton(QIcon.fromTheme('document-open'), 'Arquivo SVG/PNG…')
+        self.b_restore = QPushButton(QIcon.fromTheme('edit-undo'), 'Restaurar')
+        self.b_color = QPushButton(QIcon.fromTheme('color-management'), 'Cor…')
+        color_menu = QMenu(self.b_color)
+        color_menu.addAction('Seguir o tema (padrão)', lambda: self.apply_color(None))
+        color_menu.addAction('Escolher cor fixa…', self.pick_color)
+        self.b_color.setMenu(color_menu)
+        self.b_theme.clicked.connect(self.pick_theme)
+        self.b_file.clicked.connect(self.pick_file)
+        self.b_restore.clicked.connect(self.do_restore)
+        self.size_slider = QSlider(Qt.Horizontal)
+        self.size_slider.setRange(50, 160)
+        self.size_slider.setSingleStep(5)
+        self.size_slider.setPageStep(10)
+        self.size_slider.setTickInterval(10)
+        self.size_slider.setTickPosition(QSlider.TicksBelow)
+        self.size_label = QLabel('100%')
+        self.size_label.setMinimumWidth(44)
+        self.size_slider.valueChanged.connect(lambda v: self.size_label.setText(f'{v}%'))
+        self.size_slider.sliderReleased.connect(self.apply_size)
+        self.size_reset = QPushButton('100%')
+        self.size_reset.clicked.connect(lambda: (self.size_slider.setValue(100), self.apply_size()))
+        self.b_apply = QPushButton(QIcon.fromTheme('dialog-ok-apply'), 'Aplicar no painel')
+        self.b_apply.setEnabled(False)
+        self.b_apply.clicked.connect(self.reload_panel)
+
+        right = QVBoxLayout()
+        right.addWidget(self.variants)
+        right.addWidget(self.all_group)
+        size_row = QHBoxLayout()
+        size_row.addWidget(QLabel('Tamanho:'))
+        size_row.addWidget(self.size_slider, 1)
+        size_row.addWidget(self.size_label)
+        size_row.addWidget(self.size_reset)
+        right.addLayout(size_row)
+        row = QHBoxLayout()
+        for b in (self.b_theme, self.b_file, self.b_color, self.b_restore):
+            row.addWidget(b)
+        row.addStretch()
+        row.addWidget(self.b_apply)
+        right.addLayout(row)
+        hint = QLabel('Dica: SVGs da Lucide e similares (com currentColor) seguem a cor do tema automaticamente.')
+        hint.setEnabled(False)
+        right.addWidget(hint)
+        rw = QWidget()
+        rw.setLayout(right)
+
+        split = QSplitter()
+        split.addWidget(self.groups)
+        split.addWidget(rw)
+        split.setSizes([250, 520])
+        lay = QVBoxLayout(self)
+        lay.addWidget(split)
+
+        gi, vi = start if start else (0, 0)
+        self.groups.setCurrentRow(gi)
+        self.variants.setCurrentItem(self.variants.topLevelItem(vi))
+
+    def group(self):
+        return GROUPS[self.groups.currentRow()]
+
+    def fill_variants(self, gi):
+        self.variants.clear()
+        for label, rx in GROUPS[gi][1]:
+            sc = get_scale(rx)
+            state = 'personalizado' if custom_files(rx) else 'Windows 11'
+            if sc and abs(sc - 1) > 0.001:
+                state += f' · {round(sc * 100)}%'
+            col = get_color(rx)
+            if col:
+                state += f' · cor {col}'
+            it = QTreeWidgetItem([label, state])
+            it.setIcon(0, QIcon(preview(current_file(rx), self.text_color)))
+            it.setData(0, Qt.UserRole, rx)
+            self.variants.addTopLevelItem(it)
+        self.update_buttons()
+
+    def targets(self):
+        if self.all_group.isChecked():
+            return [rx for _, rx in self.group()[1]]
+        it = self.variants.currentItem()
+        return [it.data(0, Qt.UserRole)] if it else []
+
+    def update_buttons(self):
+        it = self.variants.currentItem()
+        ok = it is not None
+        for b in (self.b_theme, self.b_file, self.b_restore):
+            b.setEnabled(ok)
+        scale = get_scale(it.data(0, Qt.UserRole)) if ok else None
+        for w in (self.size_slider, self.size_reset, self.b_color):
+            w.setEnabled(scale is not None)  # PNG não escala nem recolore
+        self.size_slider.blockSignals(True)
+        self.size_slider.setValue(round((scale or 1) * 100))
+        self.size_slider.blockSignals(False)
+        self.size_label.setText(f'{self.size_slider.value()}%')
+
+    def pick_color(self):
+        it = self.variants.currentItem()
+        start = QColor(get_color(it.data(0, Qt.UserRole)) or '#ffffff') if it else QColor('#ffffff')
+        c = QColorDialog.getColor(start, self, 'Cor do ícone')
+        if c.isValid():
+            self.apply_color(c.name())
+
+    def apply_color(self, color):
+        for rx in self.targets():
+            set_color(rx, color)
+        self.done_change()
+
+    def apply_size(self):
+        scale = self.size_slider.value() / 100
+        for rx in self.targets():
+            set_scale(rx, scale)
+        self.done_change()
+
+    def done_change(self):
+        self.changed = True
+        self.b_apply.setEnabled(True)
+        row = self.variants.indexOfTopLevelItem(self.variants.currentItem())
+        self.fill_variants(self.groups.currentRow())
+        self.variants.setCurrentItem(self.variants.topLevelItem(max(row, 0)))
+
+    def pick_theme(self):
+        r = subprocess.run(['kdialog', '--title', TITLE, '--geticon', 'Panel', 'Status'],
+                           capture_output=True, text=True)
+        name = r.stdout.strip()
+        if r.returncode != 0 or not name:
+            return
+        src = name if os.path.isabs(name) else resolve_icon(name)
+        if not src:
+            QMessageBox.warning(self, TITLE, f'Não achei o arquivo do ícone "{name}".')
+            return
+        try:
+            for rx in self.targets():
+                apply(rx, src)
+        except (ExpatError, UnicodeDecodeError, OSError) as e:
+            QMessageBox.warning(self, TITLE, f'Não consegui usar este arquivo:\n{src}\n\n{e}')
+            return
+        self.done_change()
+
+    def pick_file(self):
+        src, _ = QFileDialog.getOpenFileName(self, TITLE, HOME, 'Imagens (*.svg *.png)')
+        if not src:
+            return
+        try:
+            for rx in self.targets():
+                apply(rx, src)
+        except (ExpatError, UnicodeDecodeError, OSError) as e:
+            QMessageBox.warning(self, TITLE, f'Não consegui usar este arquivo:\n{src}\n\n{e}')
+            return
+        self.done_change()
+
+    def do_restore(self):
+        for rx in self.targets():
+            restore(rx)
+        self.done_change()
+
+    def reload_panel(self):
+        try:
+            os.remove(f'{HOME}/.cache/icon-cache.kcache')
+        except FileNotFoundError:
+            pass
+        # O systemd limita a 3 reinícios por minuto e depois desiste do painel
+        # (start-limit-hit); reset-failed zera esse contador antes de cada reinício.
+        subprocess.run(['systemctl', '--user', 'reset-failed', 'plasma-plasmashell.service'])
+        subprocess.run(['systemctl', '--user', 'restart', 'plasma-plasmashell.service'])
+        self.changed = False
+        self.b_apply.setEnabled(False)
+
+    def closeEvent(self, e):
+        if self.changed:
+            self.reload_panel()
+        e.accept()
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setDesktopFileName('icones-painel')
+    start = find_variant(sys.argv[1]) if len(sys.argv) > 1 else None
+    w = Window(start)
+    w.show()
+    sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()
