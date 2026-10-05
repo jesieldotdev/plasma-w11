@@ -170,6 +170,12 @@ if [ "$HAVE_SOUNDS" = 1 ]; then
     kw --file kdeglobals --group Sounds --key Enable true
 fi
 
+# "Sons do sistema": canal próprio (loopback por função) para sons de notificação,
+# controlado pela bandeja; vale mesmo quando o app define o próprio volume
+mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
+cp "$HERE/data/wireplumber-sons-do-sistema.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
+systemctl --user restart wireplumber.service 2>/dev/null || true
+
 # acrílico do painel: desfoque forte com granulação
 kw --file kwinrc --group Effect-blur --key BlurStrength 15
 kw --file kwinrc --group Effect-blur --key NoiseStrength 3

@@ -612,14 +612,17 @@ index f0c1a3e..b88762a 100644
                          models.setDefaultSink(model.PulseObject)
                          models.playFeedback(model.PulseObject.index)
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
-index 0154d7d..6cc0a3d 100644
+index 0154d7d..ec3b534 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
-@@ -9,12 +9,68 @@ ColumnLayout {
+@@ -9,12 +9,73 @@ ColumnLayout {
  
      property var models
      property bool hasApps: models.sinkInputFilterModel.count > 0
-+    property bool hasEvents: models.eventStreamModel.count > 0
++    // Com o canal próprio, o controle mexe no volume dele (vale mesmo quando o
++    // app define o volume do stream); sem ele, cai no volume por função.
++    property bool useSink: models.systemSoundsSinkModel.count > 0
++    property bool hasEvents: useSink || models.eventStreamModel.count > 0
  
      spacing: 0
 -    visible: hasApps
@@ -632,7 +635,7 @@ index 0154d7d..6cc0a3d 100644
 +
 +    // "Sons do sistema", como no mixer do Windows 11: sempre visível
 +    Repeater {
-+        model: models.eventStreamModel
++        model: section.useSink ? models.systemSoundsSinkModel : models.eventStreamModel
 +
 +        delegate: Item {
 +            Layout.fillWidth: true
@@ -677,7 +680,9 @@ index 0154d7d..6cc0a3d 100644
 +                    }
 +                    onPressedChanged: {
 +                        if (!pressed) {
-+                            section.models.playFeedback(section.models.sink ? section.models.sink.index : -1)
++                            // pelo próprio canal: o bipe sai no volume escolhido
++                            section.models.playFeedback(section.useSink ? model.Index
++                                : (section.models.sink ? section.models.sink.index : -1))
 +                        }
 +                    }
 +                }
@@ -686,7 +691,7 @@ index 0154d7d..6cc0a3d 100644
      }
  
      Repeater {
-@@ -49,7 +105,7 @@ ColumnLayout {
+@@ -49,7 +110,7 @@ ColumnLayout {
  
                      PlasmaComponents3.Label {
                          Layout.fillWidth: true
@@ -696,10 +701,30 @@ index 0154d7d..6cc0a3d 100644
                          font.pixelSize: 11
                          elide: Text.ElideRight
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
-index 71df315..1aa69f1 100644
+index 71df315..6b8a172 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeModels.qml
-@@ -28,6 +28,12 @@ QtObject {
+@@ -7,9 +7,19 @@ QtObject {
+     readonly property var sink: Vol.PreferredDevice.sink
+     readonly property bool sinkAvailable: sink && !(sink.name === "auto_null")
+ 
++    // Canal "Sons do sistema" (loopback por função do WirePlumber, ver
++    // ~/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf)
++    readonly property string systemSoundsSinkName: "input.loopback.sink.role.notification"
++
+     readonly property var sinkFilterModel: Vol.PulseObjectFilterModel {
+         sourceModel: Vol.SinkModel {}
+         filterOutInactiveDevices: true
++        filters: [{ role: "Name", value: name => name !== root.systemSoundsSinkName }]
++    }
++
++    readonly property var systemSoundsSinkModel: Vol.PulseObjectFilterModel {
++        sourceModel: Vol.SinkModel {}
++        filters: [{ role: "Name", value: root.systemSoundsSinkName }]
+     }
+ 
+     readonly property var sinkInputFilterModel: Vol.PulseObjectFilterModel {
+@@ -28,6 +38,12 @@ QtObject {
          ]
      }
  

@@ -25,7 +25,9 @@ if [ "$PURGE" = 1 ]; then
     done
     rm -rf "$THEMES/Windows-11-dark" "$ICONS/Windows-11-Fluent" "$ICONS/Windows-11-Custom" \
            "$ICONS/Windows-11-cursors" "$HOME/.local/share/sounds/Windows-11" \
-           "$BIN/icones-painel" "$HOME/.local/share/applications/icones-painel.desktop"
+           "$BIN/icones-painel" "$HOME/.local/share/applications/icones-painel.desktop" \
+           "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
+    systemctl --user restart wireplumber.service 2>/dev/null || true
     find "$LOCALE_DIR" -name 'plasma_applet_org.kde.windowsmodern.*.mo' -delete 2>/dev/null || true
     QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || echo /usr/lib64/qt6/plugins)
     as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so"
