@@ -60,7 +60,10 @@ def icon_for(name):
     if n in ('battery-full-charged', 'battery_charged', 'battery-100-charged'): return bat(100, True)
     if n in ('bluetooth-disabled', 'bluetooth-offline', 'bluetooth-inactive'): return svg([(0xE702, 0.45)])
     if n.startswith('bluetooth'): return svg([(0xE702, 1)])
-    if n.startswith('brightness') or n.startswith('video-display-brightness'): return svg([(0xE706, 1)])
+    # brilho baixo = sol meio preenchido (E793); o resto, sol cheio (E706)
+    if re.fullmatch(r'(display-)?brightness-low|low-brightness', n): return svg([(0xE793, 1)])
+    if n.startswith('brightness') or n.startswith('video-display-brightness') or n.startswith('display-brightness') \
+            or n == 'high-brightness': return svg([(0xE706, 1)])
     if n == 'klipper': return svg([(0xE77F, 1)])
     # Na tomada a bateria do Plasma mostra o perfil de energia; o Windows mostra a bateria carregando
     if n.startswith('battery-profile') or n.startswith('power-profile'): return bat(100, True)

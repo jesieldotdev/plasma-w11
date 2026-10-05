@@ -73,7 +73,8 @@ GROUPS = [
     ('Outros', [
         ('USB / dispositivos', r'media-removable|drive-removable-media(-usb)?|device-notifier'),
         ('Área de transferência', r'klipper'),
-        ('Brilho', r'brightness.*|video-display-brightness|display-brightness.*'),
+        ('Brilho', r'brightness-high|high-brightness|(display-)?brightness(-medium|-high)?|video-display-brightness'),
+        ('Brilho baixo / tela esmaecida', r'(display-)?brightness-low|low-brightness'),
     ]),
 ]
 
