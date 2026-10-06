@@ -27,4 +27,6 @@ for f in sys.argv[1:]:
     open(f, 'w').write(re.sub(r'<[^!?>][^>]*>', fix, s))
 PY
 sed -i 's/opacity:0.6;fill:#1C1C1C/opacity:0.5;fill:#1C1C1C/g' "$DST/translucent/widgets/panel-background.svg"
+# linha fina e clara no topo da barra, como no Windows 11 (1 px na borda de cima do elemento "top")
+sed -i 's|\(transform="matrix(0.37500096,0,0,1.9999988,52.874957,-1814.7233)">\)|\1<rect x="19" y="910.36218" width="32" height="0.5" style="fill:#ffffff;opacity:0.12;stroke:none" />|' "$DST/translucent/widgets/panel-background.svg"
 rm -f "$HOME"/.cache/plasma_theme_*.kcache
