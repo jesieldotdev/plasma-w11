@@ -26,5 +26,5 @@ for f in sys.argv[1:]:
     s = open(f).read()
     open(f, 'w').write(re.sub(r'<[^!?>][^>]*>', fix, s))
 PY
-sed -i 's/opacity:0.6;fill:#1C1C1C/opacity:0.8;fill:#1C1C1C/g' "$DST/translucent/widgets/panel-background.svg"
+sed -i 's/opacity:0.6;fill:#1C1C1C/opacity:0.5;fill:#1C1C1C/g' "$DST/translucent/widgets/panel-background.svg"
 rm -f "$HOME"/.cache/plasma_theme_*.kcache
