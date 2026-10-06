@@ -2,6 +2,8 @@
 
 Deixa o **KDE Plasma 6** com a cara do **Windows 11** — no modo escuro.
 
+![Área de trabalho com o Plasma W11](docs/screenshot.png)
+
 Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (temas,
 ícones, menu Iniciar, tela de bloqueio) numa versão fixa e acrescenta:
 
