@@ -129,6 +129,34 @@ def is_app_icon(rx):
     return not any(f.endswith('.svg') and r.fullmatch(base_name(f)) for f in os.listdir(f'{BASE}/status'))
 
 
+def tray_apps():
+    """Apps com ícone na bandeja agora (StatusNotifierItem) que informam o ícone pelo nome."""
+    def call(*args):
+        return subprocess.run(args, capture_output=True, text=True).stdout.strip()
+
+    def prop(svc, obj, name):
+        out = call('busctl', '--user', 'get-property', svc, obj, 'org.kde.StatusNotifierItem', name)
+        m = re.match(r'^s "(.*)"$', out)
+        # busctl escapa acentos como \303\255 (octal dos bytes UTF-8)
+        return m.group(1).encode('latin-1', 'backslashreplace').decode('unicode_escape').encode('latin-1').decode('utf-8', 'replace') if m else ''
+
+    apps = []
+    items = call('qdbus-qt6', 'org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher',
+                 'org.kde.StatusNotifierWatcher.RegisteredStatusNotifierItems')
+    for it in items.split():
+        svc, _, obj = it.partition('/')
+        icon = re.sub(r'-(symbolic|panel)$', '', prop(svc, '/' + obj, 'IconName'))
+        if icon and all(icon != a[1] for a in apps):
+            apps.append((prop(svc, '/' + obj, 'Title') or icon, icon))
+    return sorted(apps, key=lambda a: a[0].lower())
+
+
+def add_tray_apps():
+    variants = [(title, re.escape(icon)) for title, icon in tray_apps() if find_variant(icon) is None]
+    if variants:
+        GROUPS.insert(len(GROUPS) - 1, ('Apps na bandeja', variants))
+
+
 def add_app_icon(icon):
     """Põe em "Outros" um ícone que não é do tema (vindo do "Alterar ícone…" da bandeja)."""
     n = re.sub(r'-(symbolic|panel)$', '', icon)
@@ -560,6 +588,7 @@ class Window(QWidget):
 def main():
     app = QApplication(sys.argv)
     app.setDesktopFileName('icones-painel')
+    add_tray_apps()
     add_custom_app_icons()
     start = add_app_icon(sys.argv[1]) if len(sys.argv) > 1 else None
     w = Window(start)

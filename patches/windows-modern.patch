@@ -189,7 +189,7 @@ index 30a7506..cd8b7b3 100644
          ComboBox {
              Kirigami.FormData.label: i18n("All apps sort")
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
-index 93b62e2..5f2873b 100644
+index 93b62e2..480c375 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
 @@ -2,14 +2,15 @@
@@ -442,8 +442,7 @@ index 93b62e2..5f2873b 100644
 -                    color: Kirigami.Theme.textColor
 -                    opacity: Theme.separatorOpacity
 -                }
-+                height: searchBar.implicitHeight + Kirigami.Units.gridUnit * 2.4
- 
+-
 -                // ── Right column: avatar + system locations ────────────────
 -                ColumnLayout {
 -                    id: rightColumn
@@ -533,7 +532,8 @@ index 93b62e2..5f2873b 100644
 -                Kirigami.Theme.colorSet: Kirigami.Theme.Header
 -                Kirigami.Theme.inherit: false
 -                color: "transparent"
--
++                height: searchBar.implicitHeight + Kirigami.Units.gridUnit * 2.4
+ 
 -                Rectangle {
 -                    anchors.top: parent.top
 -                    width: parent.width
@@ -657,7 +657,7 @@ index 93b62e2..5f2873b 100644
                  }
              }
  
-@@ -451,6 +361,25 @@ Item {
+@@ -451,6 +361,32 @@ Item {
              }
  
              function handleContextAction(actionId, argument, context) {
@@ -676,6 +676,13 @@ index 93b62e2..5f2873b 100644
 +                    root.closeMenu();
 +                    return;
 +                }
++                if (actionId === "_start_footer_toggle") {
++                    var folders = (Plasmoid.configuration.footerFolders || []).slice();
++                    var i = folders.indexOf(argument.key);
++                    if (i >= 0) folders.splice(i, 1); else folders.push(argument.key);
++                    Plasmoid.configuration.footerFolders = folders;
++                    return;
++                }
 +                if (actionId === "_start_move_front") {
 +                    globalFavorites.moveRow(argument.index, 0);
 +                    return;
@@ -683,7 +690,7 @@ index 93b62e2..5f2873b 100644
                  // Milou runner actions: invoke the named action on the
                  // current match via ResultsView.runAction().
                  if (actionId === "_milou_runner_action" && context && context.kind === "milou") {
-@@ -480,22 +409,18 @@ Item {
+@@ -480,22 +416,18 @@ Item {
              }
  
              function focusActivePageResults() {
@@ -712,7 +719,7 @@ index 93b62e2..5f2873b 100644
                  }
              }
  
-@@ -508,6 +433,17 @@ Item {
+@@ -508,6 +440,17 @@ Item {
  
              // Rebuild the lookup map when the source model changes.
              // Returns { favoriteId, url, actionList } or null.
@@ -730,7 +737,7 @@ index 93b62e2..5f2873b 100644
              function lookupAppByDisplayName(displayName) {
                  if (!displayName) return null;
                  return rootItem._appLookupMap[displayName] || null;
-@@ -581,9 +517,9 @@ Item {
+@@ -581,9 +524,9 @@ Item {
                      event.accepted = true;
                      if (root.searching) {
                          reset();
@@ -743,7 +750,7 @@ index 93b62e2..5f2873b 100644
                      } else {
                          root.closeMenu();
                      }
-@@ -593,7 +529,7 @@ Item {
+@@ -593,7 +536,7 @@ Item {
                  // Backspace from a list: delete last search char.
                  if (event.key === Qt.Key_Backspace) {
                      event.accepted = true;
@@ -752,7 +759,7 @@ index 93b62e2..5f2873b 100644
                      return;
                  }
  
-@@ -617,15 +553,17 @@ Item {
+@@ -617,15 +560,17 @@ Item {
                  if (event.text !== "" && event.text !== "\t"
                          && !(event.modifiers & Qt.ControlModifier)) {
                      event.accepted = true;
@@ -1697,10 +1704,10 @@ index 0000000..dae92fb
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml
 new file mode 100644
-index 0000000..87395e6
+index 0000000..c88cfc0
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,200 @@
 +/***************************************************************************
 + *   License: GPL-3.0-or-later
 + *
@@ -1757,6 +1764,30 @@ index 0000000..87395e6
 +            if (allFolders[keys[i]]) out.push(allFolders[keys[i]]);
 +        }
 +        return out;
++    }
++
++    // ordem das pastas na lista "Personalizar", como em Iniciar > Pastas no Windows
++    readonly property var folderKeys: ["settings", "explorer", "documents", "downloads", "music",
++                                       "pictures", "videos", "network", "home"]
++
++    function openFolderMenu(item, x, y) {
++        var on = Plasmoid.configuration.footerFolders || [];
++        var acts = [];
++        for (var i = 0; i < folderKeys.length; i++) {
++            var k = folderKeys[i];
++            acts.push({ text: allFolders[k].text, icon: on.indexOf(k) >= 0 ? "checkmark" : "",
++                        actionId: "_start_footer_toggle", actionArgument: { key: k } });
++        }
++        var pos = item.mapToItem(sharedContextMenu, x, y);
++        // sem espaço embaixo, o menu de contexto já abre para cima
++        sharedContextMenu.open(acts, pos.x, pos.y, {});
++    }
++
++    // botão direito no espaço vazio do rodapé também personaliza as pastas
++    MouseArea {
++        anchors.fill: parent
++        acceptedButtons: Qt.RightButton
++        onClicked: mouse => footer.openFolderMenu(footer, mouse.x, mouse.y)
 +    }
 +
 +    RowLayout {
@@ -1820,6 +1851,7 @@ index 0000000..87395e6
 +                implicitWidth: implicitHeight
 +                toolTip: modelData.text
 +                onClicked: footer.run(modelData.command)
++                onRightClicked: (x, y) => footer.openFolderMenu(this, x, y)
 +                Kirigami.Icon {
 +                    anchors.centerIn: parent
 +                    width: Kirigami.Units.iconSizes.smallMedium
@@ -1852,6 +1884,7 @@ index 0000000..87395e6
 +        id: fb
 +        property string toolTip
 +        signal clicked
++        signal rightClicked(real x, real y)
 +        implicitHeight: Math.round(Kirigami.Units.gridUnit * 2.4)
 +        Layout.preferredHeight: implicitHeight
 +        Layout.preferredWidth: implicitWidth
@@ -1864,7 +1897,11 @@ index 0000000..87395e6
 +            anchors.fill: parent
 +            hoverEnabled: true
 +            z: 10
-+            onClicked: fb.clicked()
++            acceptedButtons: Qt.LeftButton | Qt.RightButton
++            onClicked: mouse => {
++                if (mouse.button === Qt.RightButton) fb.rightClicked(mouse.x, mouse.y);
++                else fb.clicked();
++            }
 +            PlasmaComponents3.ToolTip.text: fb.toolTip
 +            PlasmaComponents3.ToolTip.visible: fb.toolTip !== "" && containsMouse
 +            PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -3155,7 +3192,7 @@ index d5cabb0..9d48223 100644
 +    QStringList m_itemOrder;
  };
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp b/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
-index 76e1af1..2f3aa2a 100644
+index 76e1af1..155d7e1 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/systemtray.cpp
 @@ -11,6 +11,9 @@
@@ -3186,3 +3223,38 @@ index 76e1af1..2f3aa2a 100644
      if (desktopMenu->isEmpty()) {
          delete desktopMenu;
          return;
+@@ -427,12 +441,33 @@ void SystemTray::openContextMenu(const QString &service, QPoint pos, QQuickItem
+         return;
+     }
+ 
++    const QString icon = source->iconName();
+     connect(
+         source,
+         &StatusNotifierItemSource::contextMenuReady,
+         this,
+-        [this, statusNotifierIcon, pos](QMenu *menu) {
++        [this, statusNotifierIcon, pos, icon](QMenu *menu) {
+             if (menu && !menu->isEmpty()) {
++                // "Alterar ícone…" também nos apps (o menu é do próprio app, via DBusMenu):
++                // tira o que foi posto da última vez antes de pôr de novo.
++                const QString tool = QDir::homePath() + QStringLiteral("/.local/bin/icones-painel");
++                const auto actions = menu->actions();
++                for (QAction *a : actions) {
++                    if (a->objectName().startsWith(QLatin1String("w11-change-icon"))) {
++                        menu->removeAction(a);
++                        a->deleteLater();
++                    }
++                }
++                if (!icon.isEmpty() && QFileInfo::exists(tool)) {
++                    menu->addSeparator()->setObjectName(QStringLiteral("w11-change-icon-sep"));
++                    QAction *changeIcon = menu->addAction(QIcon::fromTheme(QStringLiteral("preferences-desktop-icons")),
++                                                          QStringLiteral("Alterar ícone…"));
++                    changeIcon->setObjectName(QStringLiteral("w11-change-icon"));
++                    connect(changeIcon, &QAction::triggered, menu, [tool, icon]() {
++                        QProcess::startDetached(tool, {icon});
++                    });
++                }
++
+                 KAcceleratorManager::manage(menu);
+ 
+                 menu->winId();
