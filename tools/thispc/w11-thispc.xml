@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <!-- Tipos só usados por thispc:/ ; o comentário vira o título do grupo no Dolphin
+       ("Pastas" antes de "Unidades...": o Dolphin ordena os grupos pelo nome) -->
+  <mime-type type="application/x-w11-drive">
+    <comment>Devices and drives</comment>
+    <comment xml:lang="pt_BR">Unidades e dispositivos</comment>
+    <generic-icon name="drive-harddisk"/>
+  </mime-type>
+  <mime-type type="application/x-w11-folder">
+    <comment>Folders</comment>
+    <comment xml:lang="pt_BR">Pastas</comment>
+    <generic-icon name="folder"/>
+  </mime-type>
+</mime-info>

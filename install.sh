@@ -51,7 +51,7 @@ if [ "$DEPS" = 1 ]; then
             kf6-kpackage-devel kf6-kconfig-devel kf6-ki18n-devel kf6-kcoreaddons-devel \
             kf6-kwindowsystem-devel kf6-kio-devel kf6-kiconthemes-devel kf6-kitemmodels-devel \
             kf6-kservice-devel kf6-kxmlgui-devel kf6-kjobwidgets-devel kf6-kcmutils-devel \
-            libplasma-devel plasma-workspace-devel plasma-workspace-libs
+            libplasma-devel plasma-workspace-devel plasma-workspace-libs attr
         if [ "$ROUNDED" = 1 ]; then
             step "Bordas arredondadas (COPR matinlotfali/KDE-Rounded-Corners)"
             as_root dnf -y -q copr enable matinlotfali/KDE-Rounded-Corners
@@ -88,6 +88,17 @@ cmake --build "$STATE/build-systray" --parallel "$(nproc)" >/dev/null
 QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || echo /usr/lib64/qt6/plugins)
 as_root install -m 755 "$STATE/build-systray/lib/plasma/applets/org.kde.windowsmodern.systemtray.so" "$QT_PLUGINS/plasma/applets/"
 as_root rm -rf /usr/share/plasma/plasmoids/org.kde.windowsmodern.systemtray
+
+# ── 4b. "Este Computador" no Dolphin (thispc:/ com a barra de espaço) ─
+info "Explorador: Este Computador"
+cmake -S "$HERE/tools/thispc" -B "$STATE/build-thispc" -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$STATE/build-thispc" --parallel "$(nproc)" >/dev/null
+as_root install -m 755 "$STATE/build-thispc/lib/kf6/kio/kio_thispc.so" "$QT_PLUGINS/kf6/kio/"
+as_root install -m 755 "$STATE/build-thispc/lib/kf6/thumbcreator/thispcthumbnail.so" "$QT_PLUGINS/kf6/thumbcreator/"
+mkdir -p "$HOME/.local/share/mime/packages"
+cp "$HERE/tools/thispc/w11-thispc.xml" "$HOME/.local/share/mime/packages/"
+update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
+python3 "$HERE/tools/thispc/setup-dolphin.py" >/dev/null
 
 # ── 5. traduções ─────────────────────────────────────────────────────
 info "Traduções dos applets"

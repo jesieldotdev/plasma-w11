@@ -31,7 +31,11 @@ if [ "$PURGE" = 1 ]; then
     systemctl --user restart wireplumber.service 2>/dev/null || true
     find "$LOCALE_DIR" -name 'plasma_applet_org.kde.windowsmodern.*.mo' -delete 2>/dev/null || true
     QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || echo /usr/lib64/qt6/plugins)
-    as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so"
+    as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so" \
+                  "$QT_PLUGINS/kf6/kio/kio_thispc.so" "$QT_PLUGINS/kf6/thumbcreator/thispcthumbnail.so"
+    rm -f "$HOME/.local/share/mime/packages/w11-thispc.xml"
+    update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
+    kwriteconfig6 --file dolphinrc --group General --key HomeUrl --delete 2>/dev/null || true
     restart_shell
     echo "Os backups continuam em $STATE/backups (apague à mão se quiser)."
 fi
