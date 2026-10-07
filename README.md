@@ -22,6 +22,10 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
 - **Explorador abrindo em "Este Computador"**: o Dolphin abre numa página com as Pastas e
   as Unidades e dispositivos, cada unidade com a barra de espaço usado e "X GB livres de
   Y GB", como no Windows 11 (`thispc:/`, também no painel lateral).
+- **Painel de navegação do Explorador**: uma árvore só com Acesso rápido (pastas fixadas,
+  com 📌), Este Computador (pastas e unidades, expandindo as subpastas), unidades
+  removíveis e Rede. É o Dolphin do sistema compilado com `patches/dolphin-navegacao.patch`
+  e instalado à parte; rode o instalador de novo quando o Dolphin for atualizado.
 - **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
   alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
   barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,

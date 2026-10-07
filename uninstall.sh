@@ -36,6 +36,10 @@ if [ "$PURGE" = 1 ]; then
     rm -f "$HOME/.local/share/mime/packages/w11-thispc.xml"
     update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
     kwriteconfig6 --file dolphinrc --group General --key HomeUrl --delete 2>/dev/null || true
+    rm -rf "$STATE/explorador" "$STATE/dolphin-src" "$STATE/build-dolphin" \
+           "$HOME/.local/share/applications/org.kde.dolphin.desktop" \
+           "$HOME/.config/systemd/user/plasma-dolphin.service.d/plasma-w11.conf"
+    systemctl --user daemon-reload 2>/dev/null || true
     restart_shell
     echo "Os backups continuam em $STATE/backups (apague à mão se quiser)."
 fi

@@ -1,0 +1,651 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 319c551..a0f8804 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -307,6 +307,7 @@ target_sources(dolphinstatic PRIVATE
+     filterbar/filterbar.cpp
+     kitemviews/kfileitemlisttostring.cpp
+     panels/places/placespanel.cpp
++    panels/navigation/navigationpanel.cpp
+     panels/panel.cpp
+     panels/folders/foldersitemlistwidget.cpp
+     panels/folders/treeviewcontextmenu.cpp
+@@ -376,6 +377,7 @@ target_sources(dolphinstatic PRIVATE
+     filterbar/filterbar.h
+     kitemviews/kfileitemlisttostring.h
+     panels/places/placespanel.h
++    panels/navigation/navigationpanel.h
+     panels/panel.h
+     panels/folders/foldersitemlistwidget.h
+     panels/folders/treeviewcontextmenu.h
+diff --git a/src/dolphinmainwindow.cpp b/src/dolphinmainwindow.cpp
+index a29fe0d..e431795 100644
+--- a/src/dolphinmainwindow.cpp
++++ b/src/dolphinmainwindow.cpp
+@@ -24,6 +24,7 @@
+ #include "global.h"
+ #include "middleclickactioneventfilter.h"
+ #include "panels/folders/folderspanel.h"
++#include "panels/navigation/navigationpanel.h"
+ #include "panels/places/placespanel.h"
+ #include "panels/terminal/terminalpanel.h"
+ #include "search/dolphinquery.h"
+@@ -45,6 +46,8 @@
+ #include <KColorSchemeManager>
+ #include <KColorSchemeMenu>
+ #include <KConfig>
++#include <KConfigGroup>
++#include <KSharedConfig>
+ #include <KConfigGui>
+ #include <KDesktopFile>
+ #include <KDialogJobUiDelegate>
+@@ -232,6 +235,23 @@ DolphinMainWindow::DolphinMainWindow()
+         }
+     }
+ 
++    // plasma-w11: na primeira vez, o painel de navegação substitui Locais e Pastas
++    {
++        KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("PlasmaW11"));
++        if (!group.readEntry("NavigationPanelSetup", false)) {
++            for (const char *name : {"placesDock", "foldersDock"}) {
++                if (auto *dock = findChild<QDockWidget *>(QLatin1String(name))) {
++                    dock->hide();
++                }
++            }
++            if (auto *dock = findChild<QDockWidget *>(QStringLiteral("navigationDock"))) {
++                dock->show();
++            }
++            group.writeEntry("NavigationPanelSetup", true);
++            group.sync();
++        }
++    }
++
+     QAction *showMenuBarAction = actionCollection()->action(KStandardAction::name(KStandardAction::ShowMenubar));
+     showMenuBarAction->setChecked(!menuBar()->isHidden()); //workaround for bug #171080
+     QTimer::singleShot(0, this, [this, showMenuBarAction]() {
+@@ -2495,6 +2515,21 @@ void DolphinMainWindow::setupDockWidgets()
+         foldersDock->hide();
+     }
+ 
++    // Painel de navegação do Windows 11 (plasma-w11): Acesso rápido, Este Computador, Rede
++    DolphinDockWidget *navigationDock = new DolphinDockWidget(QStringLiteral("Navegação"));
++    navigationDock->setLocked(lock);
++    navigationDock->setObjectName(QStringLiteral("navigationDock"));
++    navigationDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
++    NavigationPanel *navigationPanel = new NavigationPanel(navigationDock);
++    navigationPanel->setCustomContextMenuActions({lockLayoutAction});
++    navigationDock->setWidget(navigationPanel);
++    createPanelAction(QIcon::fromTheme(QStringLiteral("view-list-tree")), Qt::Key_F8, navigationDock, QStringLiteral("show_navigation_panel"));
++    addDockWidget(Qt::LeftDockWidgetArea, navigationDock);
++    connect(this, &DolphinMainWindow::urlChanged, navigationPanel, &NavigationPanel::setUrl);
++    connect(navigationPanel, &NavigationPanel::folderActivated, this, &DolphinMainWindow::changeUrl);
++    connect(navigationPanel, &NavigationPanel::folderInNewTab, this, &DolphinMainWindow::openNewTab);
++    connect(navigationPanel, &NavigationPanel::folderInNewActiveTab, this, &DolphinMainWindow::openNewTabAndActivate);
++
+     // Setup "Places"
+     DolphinDockWidget *placesDock = new DolphinDockWidget(i18nc("@title:window", "Places"));
+     placesDock->setLocked(lock);
+diff --git a/src/panels/navigation/navigationpanel.cpp b/src/panels/navigation/navigationpanel.cpp
+new file mode 100644
+index 0000000..77e9d30
+--- /dev/null
++++ b/src/panels/navigation/navigationpanel.cpp
+@@ -0,0 +1,491 @@
++/*
++ * Painel de navegação no estilo do Explorador do Windows 11 (plasma-w11).
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "navigationpanel.h"
++
++#include <KFilePlacesModel>
++#include <KIO/Global>
++#include <Solid/DeviceNotifier>
++
++#include <QDir>
++#include <QDirIterator>
++#include <QFileInfo>
++#include <QHeaderView>
++#include <QMenu>
++#include <QMouseEvent>
++#include <QPainter>
++#include <QProxyStyle>
++#include <QStandardItemModel>
++#include <QStandardPaths>
++#include <QStorageInfo>
++#include <QStyledItemDelegate>
++#include <QTimer>
++#include <QTreeView>
++#include <QVBoxLayout>
++
++namespace
++{
++enum Role {
++    UrlRole = Qt::UserRole + 1,
++    KindRole,
++    LoadedRole,
++    PinnedRole,
++};
++
++enum Kind {
++    Placeholder = -1, // filho falso só para mostrar a seta antes de carregar
++    Header,           // "Acesso rápido"
++    Folder,           // pasta (expande as subpastas)
++    ThisPc,
++    Network,
++};
++
++const QUrl thisPcUrl(QStringLiteral("thispc:/"));
++const QUrl networkUrl(QStringLiteral("remote:/"));
++
++bool hasSubdirs(const QString &path)
++{
++    QDirIterator it(path, QDir::Dirs | QDir::NoDotAndDotDot);
++    return it.hasNext();
++}
++
++bool isRealDrive(const QStorageInfo &s)
++{
++    if (!s.isValid() || !s.isReady() || s.bytesTotal() <= 0) {
++        return false;
++    }
++    static const QList<QByteArray> fs = {"ext2", "ext3", "ext4", "btrfs", "xfs", "f2fs", "ntfs", "ntfs3",
++                                         "fuseblk", "vfat", "exfat", "msdos", "jfs", "reiserfs", "zfs"};
++    const QString root = s.rootPath();
++    return fs.contains(s.fileSystemType()) && !root.startsWith(QLatin1String("/boot")) && !root.startsWith(QLatin1String("/var/"))
++        && !root.startsWith(QLatin1String("/snap"));
++}
++
++bool isRemovable(const QString &root)
++{
++    return root.startsWith(QLatin1String("/run/media")) || root.startsWith(QLatin1String("/media"));
++}
++
++// Setas finas do Windows (› e ⌄) no lugar das linhas pontilhadas da árvore
++class ChevronStyle : public QProxyStyle
++{
++public:
++    using QProxyStyle::QProxyStyle;
++
++    void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const override
++    {
++        if (element != PE_IndicatorBranch) {
++            QProxyStyle::drawPrimitive(element, option, painter, widget);
++            return;
++        }
++        if (!(option->state & State_Children)) {
++            return; // sem linhas ligando os itens
++        }
++        const bool open = option->state & State_Open;
++        const QPointF c = QRectF(option->rect).center();
++        const qreal r = 3.5;
++        QPolygonF chevron;
++        if (open) {
++            chevron << QPointF(c.x() - r, c.y() - r / 2) << QPointF(c.x(), c.y() + r / 2) << QPointF(c.x() + r, c.y() - r / 2);
++        } else {
++            chevron << QPointF(c.x() - r / 2, c.y() - r) << QPointF(c.x() + r / 2, c.y()) << QPointF(c.x() - r / 2, c.y() + r);
++        }
++        QColor color = option->palette.color(QPalette::Text);
++        color.setAlphaF((option->state & State_MouseOver) ? 1.0 : 0.65);
++        painter->save();
++        painter->setRenderHint(QPainter::Antialiasing);
++        painter->setPen(QPen(color, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
++        painter->drawPolyline(chevron);
++        painter->restore();
++    }
++};
++
++// Alfinete das pastas fixadas, à direita do nome (como no Acesso rápido do Windows)
++class PinDelegate : public QStyledItemDelegate
++{
++public:
++    using QStyledItemDelegate::QStyledItemDelegate;
++
++    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
++    {
++        QSize s = QStyledItemDelegate::sizeHint(option, index);
++        s.setHeight(22);
++        return s;
++    }
++
++    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
++    {
++        // fundo próprio, cinza e arredondado (o estilo pintaria o azul de destaque)
++        QStyleOptionViewItem opt(option);
++        const bool selected = opt.state & QStyle::State_Selected;
++        const bool hovered = opt.state & QStyle::State_MouseOver;
++        opt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver | QStyle::State_HasFocus);
++        if (selected || hovered) {
++            QColor bg = opt.palette.color(QPalette::Text);
++            bg.setAlphaF(selected ? 0.13 : 0.06);
++            painter->save();
++            painter->setRenderHint(QPainter::Antialiasing);
++            painter->setPen(Qt::NoPen);
++            painter->setBrush(bg);
++            painter->drawRoundedRect(QRectF(opt.rect).adjusted(0, 1, -2, -1), 4, 4);
++            painter->restore();
++        }
++        QStyledItemDelegate::paint(painter, opt, index);
++        if (!index.data(PinnedRole).toBool()) {
++            return;
++        }
++        const int size = 12;
++        const QRect r(option.rect.right() - size - 6, option.rect.center().y() - size / 2, size, size);
++        painter->save();
++        painter->setOpacity(0.6);
++        QIcon::fromTheme(QStringLiteral("window-pin")).paint(painter, r);
++        painter->restore();
++    }
++};
++} // namespace
++
++NavigationPanel::NavigationPanel(QWidget *parent)
++    : Panel(parent)
++{
++}
++
++NavigationPanel::~NavigationPanel() = default;
++
++void NavigationPanel::showEvent(QShowEvent *event)
++{
++    if (!m_view) {
++        build(); // como os outros painéis: só cria tudo quando aparece
++    } else {
++        rebuildThisPc();
++    }
++    Panel::showEvent(event);
++}
++
++bool NavigationPanel::eventFilter(QObject *watched, QEvent *event)
++{
++    // clique do meio: abre a pasta numa nova aba
++    if (m_view && watched == m_view->viewport() && event->type() == QEvent::MouseButtonRelease) {
++        auto *mouse = static_cast<QMouseEvent *>(event);
++        if (mouse->button() == Qt::MiddleButton) {
++            const QModelIndex index = m_view->indexAt(mouse->position().toPoint());
++            if (index.isValid()) {
++                activate(index, true);
++                return true;
++            }
++        }
++    }
++    return Panel::eventFilter(watched, event);
++}
++
++void NavigationPanel::build()
++{
++    m_model = new QStandardItemModel(this);
++    m_places = new KFilePlacesModel(this);
++
++    m_view = new QTreeView(this);
++    m_view->setModel(m_model);
++    m_view->setHeaderHidden(true);
++    m_view->setIconSize(QSize(16, 16));
++    m_view->setIndentation(16);
++    m_view->setUniformRowHeights(true);
++    m_view->setFrameShape(QFrame::NoFrame);
++    m_view->setAnimated(true);
++    m_view->setExpandsOnDoubleClick(false);
++    m_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
++    m_view->setMouseTracking(true);
++    m_view->setContextMenuPolicy(Qt::CustomContextMenu);
++    m_view->setItemDelegate(new PinDelegate(m_view));
++    m_view->setStyle(new ChevronStyle(m_view->style()));
++    // seleção cinza e discreta, como no painel do Explorador (não o azul de destaque)
++    QPalette pal = m_view->palette();
++    QColor selected = pal.color(QPalette::Text);
++    selected.setAlphaF(0.14);
++    pal.setColor(QPalette::Highlight, selected);
++    pal.setColor(QPalette::HighlightedText, pal.color(QPalette::Text));
++    m_view->setPalette(pal);
++    m_view->viewport()->installEventFilter(this);
++
++    auto *layout = new QVBoxLayout(this);
++    layout->setContentsMargins(0, 0, 0, 0);
++    layout->addWidget(m_view);
++
++    connect(m_view, &QTreeView::clicked, this, [this](const QModelIndex &index) {
++        activate(index, false);
++    });
++    connect(m_view, &QTreeView::expanded, this, [this](const QModelIndex &index) {
++        loadChildren(m_model->itemFromIndex(index));
++    });
++    connect(m_view, &QTreeView::customContextMenuRequested, this, &NavigationPanel::showContextMenu);
++
++    // reconstrói quando as pastas fixadas ou as unidades mudam (com folga, para juntar eventos)
++    m_rebuildTimer = new QTimer(this);
++    m_rebuildTimer->setSingleShot(true);
++    m_rebuildTimer->setInterval(300);
++    connect(m_rebuildTimer, &QTimer::timeout, this, [this]() {
++        rebuildQuickAccess();
++        rebuildThisPc();
++        selectUrl(url());
++    });
++    connect(m_places, &QAbstractItemModel::rowsInserted, m_rebuildTimer, qOverload<>(&QTimer::start));
++    connect(m_places, &QAbstractItemModel::rowsRemoved, m_rebuildTimer, qOverload<>(&QTimer::start));
++    connect(m_places, &QAbstractItemModel::dataChanged, m_rebuildTimer, qOverload<>(&QTimer::start));
++    connect(m_places, &QAbstractItemModel::modelReset, m_rebuildTimer, qOverload<>(&QTimer::start));
++    connect(Solid::DeviceNotifier::instance(), &Solid::DeviceNotifier::deviceAdded, m_rebuildTimer, qOverload<>(&QTimer::start));
++    connect(Solid::DeviceNotifier::instance(), &Solid::DeviceNotifier::deviceRemoved, m_rebuildTimer, qOverload<>(&QTimer::start));
++
++    m_quickAccess = new QStandardItem(QIcon::fromTheme(QStringLiteral("rating"), QIcon::fromTheme(QStringLiteral("starred"))), QStringLiteral("Acesso rápido"));
++    m_quickAccess->setData(Header, KindRole);
++    m_thisPc = new QStandardItem(QIcon::fromTheme(QStringLiteral("computer")), QStringLiteral("Este Computador"));
++    m_thisPc->setData(ThisPc, KindRole);
++    m_thisPc->setData(thisPcUrl, UrlRole);
++    m_network = new QStandardItem(QIcon::fromTheme(QStringLiteral("network-workgroup")), QStringLiteral("Rede"));
++    m_network->setData(Network, KindRole);
++    m_network->setData(networkUrl, UrlRole);
++    for (QStandardItem *item : {m_quickAccess, m_thisPc, m_network}) {
++        item->setEditable(false);
++        m_model->appendRow(item);
++    }
++
++    rebuildQuickAccess();
++    rebuildThisPc();
++    m_view->expand(m_quickAccess->index());
++    m_view->expand(m_thisPc->index());
++    selectUrl(url());
++}
++
++QStandardItem *NavigationPanel::folderItem(const QString &name, const QString &icon, const QString &path, bool pinned)
++{
++    auto *item = new QStandardItem(QIcon::fromTheme(icon), name);
++    item->setEditable(false);
++    item->setToolTip(path);
++    item->setData(QUrl::fromLocalFile(path), UrlRole);
++    item->setData(Folder, KindRole);
++    item->setData(pinned, PinnedRole);
++    if (!pinned && hasSubdirs(path)) {
++        auto *placeholder = new QStandardItem;
++        placeholder->setData(Placeholder, KindRole);
++        item->appendRow(placeholder);
++    }
++    return item;
++}
++
++void NavigationPanel::rebuildQuickAccess()
++{
++    m_quickAccess->removeRows(0, m_quickAccess->rowCount());
++    const QString home = QDir::homePath();
++    for (int row = 0; row < m_places->rowCount(); ++row) {
++        const QModelIndex idx = m_places->index(row, 0);
++        const QUrl url = m_places->url(idx);
++        if (m_places->isHidden(idx) || m_places->groupType(idx) != KFilePlacesModel::PlacesType || !url.isLocalFile()
++            || url.toLocalFile() == home || !QFileInfo(url.toLocalFile()).isDir()) {
++            continue;
++        }
++        m_quickAccess->appendRow(folderItem(m_places->text(idx), m_places->icon(idx).name(), url.toLocalFile(), true));
++    }
++}
++
++void NavigationPanel::rebuildThisPc()
++{
++    if (!m_thisPc) {
++        return;
++    }
++    const bool wasExpanded = m_view->isExpanded(m_thisPc->index());
++    m_thisPc->removeRows(0, m_thisPc->rowCount());
++    for (QStandardItem *item : std::as_const(m_removable)) {
++        m_model->removeRow(item->row());
++    }
++    m_removable.clear();
++
++    // pastas do usuário, na ordem do Windows
++    const QStandardPaths::StandardLocation folders[] = {QStandardPaths::DesktopLocation, QStandardPaths::DocumentsLocation,
++                                                        QStandardPaths::DownloadLocation, QStandardPaths::PicturesLocation,
++                                                        QStandardPaths::MusicLocation, QStandardPaths::MoviesLocation};
++    for (const auto loc : folders) {
++        const QString path = QStandardPaths::writableLocation(loc);
++        if (path.isEmpty() || path == QDir::homePath() || !QDir(path).exists()) {
++            continue;
++        }
++        const QUrl url = QUrl::fromLocalFile(path);
++        m_thisPc->appendRow(folderItem(QFileInfo(path).fileName(), KIO::iconNameForUrl(url), path));
++    }
++
++    // unidades montadas; as removíveis também aparecem no primeiro nível
++    QSet<QByteArray> seen;
++    const auto volumes = QStorageInfo::mountedVolumes();
++    for (const QStorageInfo &s : volumes) {
++        if (!isRealDrive(s) || seen.contains(s.device())) {
++            continue;
++        }
++        seen.insert(s.device());
++        const QString root = s.rootPath();
++        QString label = s.displayName();
++        if (root == QLatin1String("/")) {
++            label = QStringLiteral("Disco Local (/)");
++        } else if (label.isEmpty() || label == root) {
++            label = QFileInfo(root).fileName();
++        }
++        const bool removable = isRemovable(root);
++        const QString icon = removable ? QStringLiteral("drive-removable-media-usb") : QStringLiteral("drive-harddisk");
++        m_thisPc->appendRow(folderItem(label, icon, root));
++        if (removable) {
++            QStandardItem *top = folderItem(label, icon, root);
++            m_model->insertRow(m_network->row(), top);
++            m_removable.append(top);
++        }
++    }
++    if (wasExpanded) {
++        m_view->expand(m_thisPc->index());
++    }
++}
++
++void NavigationPanel::loadChildren(QStandardItem *item)
++{
++    if (!item || item->data(KindRole).toInt() != Folder || item->data(LoadedRole).toBool()) {
++        return;
++    }
++    item->setData(true, LoadedRole);
++    item->removeRows(0, item->rowCount());
++    const QString path = item->data(UrlRole).toUrl().toLocalFile();
++    const auto dirs = QDir(path).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase | QDir::LocaleAware);
++    for (const QFileInfo &fi : dirs) {
++        const QUrl url = QUrl::fromLocalFile(fi.absoluteFilePath());
++        item->appendRow(folderItem(fi.fileName(), KIO::iconNameForUrl(url), fi.absoluteFilePath()));
++    }
++}
++
++void NavigationPanel::activate(const QModelIndex &index, bool newTab)
++{
++    QStandardItem *item = m_model->itemFromIndex(index);
++    if (!item) {
++        return;
++    }
++    const int kind = item->data(KindRole).toInt();
++    if (kind == Placeholder) {
++        return;
++    }
++    if (kind == Header) {
++        m_view->setExpanded(index, !m_view->isExpanded(index));
++        return;
++    }
++    const QUrl target = item->data(UrlRole).toUrl();
++    if (newTab) {
++        Q_EMIT folderInNewTab(target);
++    } else {
++        Q_EMIT folderActivated(target);
++    }
++}
++
++bool NavigationPanel::urlChanged()
++{
++    if (m_view) {
++        selectUrl(url());
++    }
++    return true;
++}
++
++void NavigationPanel::selectUrl(const QUrl &url)
++{
++    if (!m_view || !url.isValid()) {
++        return;
++    }
++    QStandardItem *target = nullptr;
++    if (url.matches(thisPcUrl, QUrl::StripTrailingSlash) || url.scheme() == thisPcUrl.scheme()) {
++        target = m_thisPc;
++    } else if (url.scheme() == networkUrl.scheme()) {
++        target = m_network;
++    } else if (url.isLocalFile()) {
++        // Como o Windows: marca a pasta dentro de "Este Computador", abrindo o caminho
++        const QString path = QDir::cleanPath(url.toLocalFile());
++        QStandardItem *best = nullptr;
++        int bestLen = -1;
++        for (int i = 0; i < m_thisPc->rowCount(); ++i) {
++            QStandardItem *child = m_thisPc->child(i);
++            const QString root = QDir::cleanPath(child->data(UrlRole).toUrl().toLocalFile());
++            const bool inside = path == root || path.startsWith(root == QLatin1String("/") ? root : root + QLatin1Char('/'));
++            if (inside && root.length() > bestLen) {
++                best = child;
++                bestLen = root.length();
++            }
++        }
++        target = best;
++        while (target) {
++            const QString here = QDir::cleanPath(target->data(UrlRole).toUrl().toLocalFile());
++            if (here == path) {
++                break;
++            }
++            loadChildren(target);
++            m_view->expand(target->index());
++            QStandardItem *next = nullptr;
++            for (int i = 0; i < target->rowCount(); ++i) {
++                const QString childPath = QDir::cleanPath(target->child(i)->data(UrlRole).toUrl().toLocalFile());
++                if (path == childPath || path.startsWith(childPath + QLatin1Char('/'))) {
++                    next = target->child(i);
++                    break;
++                }
++            }
++            if (!next) {
++                break; // pasta oculta ou fora da árvore: fica marcada a mais próxima
++            }
++            target = next;
++        }
++    }
++    if (target) {
++        m_view->setCurrentIndex(target->index());
++        m_view->scrollTo(target->index());
++    } else {
++        m_view->clearSelection();
++    }
++}
++
++int NavigationPanel::pinnedRow(const QUrl &url) const
++{
++    for (int row = 0; row < m_places->rowCount(); ++row) {
++        if (m_places->url(m_places->index(row, 0)).matches(url, QUrl::StripTrailingSlash)) {
++            return row;
++        }
++    }
++    return -1;
++}
++
++void NavigationPanel::showContextMenu(const QPoint &pos)
++{
++    const QModelIndex index = m_view->indexAt(pos);
++    QStandardItem *item = m_model->itemFromIndex(index);
++    QMenu menu(this);
++    if (item && item->data(KindRole).toInt() != Header && item->data(KindRole).toInt() != Placeholder) {
++        const QUrl target = item->data(UrlRole).toUrl();
++        menu.addAction(QIcon::fromTheme(QStringLiteral("tab-new")), QStringLiteral("Abrir em nova aba"), this, [this, target]() {
++            Q_EMIT folderInNewActiveTab(target);
++        });
++        if (target.isLocalFile()) {
++            menu.addSeparator();
++            const int row = pinnedRow(target);
++            if (row >= 0 && !m_places->isHidden(m_places->index(row, 0))) {
++                menu.addAction(QIcon::fromTheme(QStringLiteral("window-unpin")), QStringLiteral("Desafixar do Acesso rápido"), this, [this, row]() {
++                    m_places->removePlace(m_places->index(row, 0));
++                });
++            } else {
++                menu.addAction(QIcon::fromTheme(QStringLiteral("window-pin")), QStringLiteral("Fixar no Acesso rápido"), this, [this, item, target, row]() {
++                    if (row >= 0) {
++                        m_places->setPlaceHidden(m_places->index(row, 0), false);
++                    } else {
++                        m_places->addPlace(item->text(), target, KIO::iconNameForUrl(target));
++                    }
++                });
++            }
++        }
++    }
++    const auto extra = customContextMenuActions();
++    if (!extra.isEmpty()) {
++        menu.addSeparator();
++        menu.addActions(extra);
++    }
++    if (!menu.isEmpty()) {
++        menu.exec(m_view->viewport()->mapToGlobal(pos));
++    }
++}
++
++#include "moc_navigationpanel.cpp"
+diff --git a/src/panels/navigation/navigationpanel.h b/src/panels/navigation/navigationpanel.h
+new file mode 100644
+index 0000000..d5e34de
+--- /dev/null
++++ b/src/panels/navigation/navigationpanel.h
+@@ -0,0 +1,61 @@
++/*
++ * Painel de navegação no estilo do Explorador do Windows 11 (plasma-w11):
++ * uma árvore só com "Acesso rápido" (pastas fixadas), "Este Computador"
++ * (pastas do usuário e unidades, cada uma expandindo as subpastas),
++ * unidades removíveis e "Rede".
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#ifndef NAVIGATIONPANEL_H
++#define NAVIGATIONPANEL_H
++
++#include "panels/panel.h"
++
++class KFilePlacesModel;
++class QStandardItem;
++class QStandardItemModel;
++class QTreeView;
++class QTimer;
++
++class NavigationPanel : public Panel
++{
++    Q_OBJECT
++
++public:
++    explicit NavigationPanel(QWidget *parent = nullptr);
++    ~NavigationPanel() override;
++
++Q_SIGNALS:
++    void folderActivated(const QUrl &url);
++    void folderInNewTab(const QUrl &url);
++    void folderInNewActiveTab(const QUrl &url);
++
++protected:
++    bool urlChanged() override;
++    void showEvent(QShowEvent *event) override;
++    bool eventFilter(QObject *watched, QEvent *event) override;
++
++private:
++    void build();
++    void rebuildQuickAccess();
++    void rebuildThisPc();
++    QStandardItem *folderItem(const QString &name, const QString &icon, const QString &path, bool pinned = false);
++    void loadChildren(QStandardItem *item);
++    void selectUrl(const QUrl &url);
++    void activate(const QModelIndex &index, bool newTab);
++    void showContextMenu(const QPoint &pos);
++    int pinnedRow(const QUrl &url) const;
++
++    QTreeView *m_view = nullptr;
++    QStandardItemModel *m_model = nullptr;
++    KFilePlacesModel *m_places = nullptr;
++    QStandardItem *m_quickAccess = nullptr;
++    QStandardItem *m_thisPc = nullptr;
++    QStandardItem *m_network = nullptr;
++    QList<QStandardItem *> m_removable;
++    QTimer *m_rebuildTimer = nullptr;
++    bool m_selecting = false;
++};
++
++#endif

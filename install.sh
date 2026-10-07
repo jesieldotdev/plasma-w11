@@ -52,6 +52,7 @@ if [ "$DEPS" = 1 ]; then
             kf6-kwindowsystem-devel kf6-kio-devel kf6-kiconthemes-devel kf6-kitemmodels-devel \
             kf6-kservice-devel kf6-kxmlgui-devel kf6-kjobwidgets-devel kf6-kcmutils-devel \
             libplasma-devel plasma-workspace-devel plasma-workspace-libs attr
+        as_root dnf -y -q builddep dolphin   # para compilar o Explorador (Dolphin com o painel do Windows)
         if [ "$ROUNDED" = 1 ]; then
             step "Bordas arredondadas (COPR matinlotfali/KDE-Rounded-Corners)"
             as_root dnf -y -q copr enable matinlotfali/KDE-Rounded-Corners
@@ -99,6 +100,30 @@ mkdir -p "$HOME/.local/share/mime/packages"
 cp "$HERE/tools/thispc/w11-thispc.xml" "$HOME/.local/share/mime/packages/"
 update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
 python3 "$HERE/tools/thispc/setup-dolphin.py" >/dev/null
+
+# ── 4c. Explorador: Dolphin com o painel de navegação do Windows 11 ─
+# Mesma versão do Dolphin do sistema + patches/dolphin-navegacao.patch, instalado
+# fora dos pacotes ($STATE/explorador); o atalho e o serviço passam a apontar para ele.
+info "Explorador: painel de navegação (Acesso rápido, Este Computador, Rede)"
+DVER=$(rpm -q --qf '%{VERSION}' dolphin 2>/dev/null || true)
+EXPLORADOR="$STATE/explorador"
+if [ -n "$DVER" ] && rm -rf "$STATE/dolphin-src" \
+    && git clone -q --depth 1 --branch "v$DVER" https://invent.kde.org/system/dolphin.git "$STATE/dolphin-src" 2>/dev/null \
+    && git -C "$STATE/dolphin-src" apply "$HERE/patches/dolphin-navegacao.patch"; then
+    cmake -S "$STATE/dolphin-src" -B "$STATE/build-dolphin" -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$EXPLORADOR" -DBUILD_TESTING=OFF >/dev/null
+    cmake --build "$STATE/build-dolphin" --parallel "$(nproc)" >/dev/null
+    cmake --install "$STATE/build-dolphin" >/dev/null
+    sed "s|^Exec=dolphin |Exec=$EXPLORADOR/bin/dolphin |" /usr/share/applications/org.kde.dolphin.desktop \
+        > "$HOME/.local/share/applications/org.kde.dolphin.desktop"
+    mkdir -p "$HOME/.config/systemd/user/plasma-dolphin.service.d"
+    printf '[Service]\nExecStart=\nExecStart=%s/bin/dolphin --daemon\n' "$EXPLORADOR" \
+        > "$HOME/.config/systemd/user/plasma-dolphin.service.d/plasma-w11.conf"
+    systemctl --user daemon-reload 2>/dev/null || true
+    step "Explorador $DVER compilado (rode o instalador de novo quando o Dolphin for atualizado)"
+else
+    warn "não deu para preparar o Explorador ($DVER); fica o Dolphin normal"
+fi
 
 # ── 5. traduções ─────────────────────────────────────────────────────
 info "Traduções dos applets"
