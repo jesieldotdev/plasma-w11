@@ -6,13 +6,14 @@
 - barra de ferramentas do Explorador (← → ↑, caminho, atualizar, pesquisa) e
   barra de status em largura total;
 - o Dolphin abre sempre em thispc:/ (sem restaurar as abas da última vez);
-- exibição de thispc:/: ícones com miniaturas, agrupado por tipo (Pastas /
-  Unidades e dispositivos). Para isso o Dolphin precisa lembrar a exibição
-  por pasta (GlobalViewProps=false), como o Explorador; as outras pastas
-  continuam começando com a exibição global de antes.
+- pastas em lista (Detalhes), como o padrão do Windows;
+- exibição de thispc:/ (no Dolphin sem o patch): ícones com miniaturas,
+  agrupado por tipo (Pastas / Unidades e dispositivos);
+- uma exibição só para todas as pastas (GlobalViewProps), que não se perde ao
+  trocar de pasta.
 Pode rodar de novo sem duplicar nada.
 """
-import base64, hashlib, os, shutil, subprocess
+import base64, hashlib, os, shutil, subprocess, time
 import xml.etree.ElementTree as ET
 
 HOME = os.path.expanduser('~')
@@ -80,7 +81,25 @@ def view_props():
         subprocess.run(['setfattr', '-n', 'user.kde.fm.viewproperties#1', '-v', props, base + h], check=True)
 
 
-kw('General', 'GlobalViewProps', 'false')
+def default_list_view():
+    """Padrão do Explorador: lista (Detalhes) por nome, sem grupos, colunas do Windows."""
+    path = f'{HOME}/.local/share/dolphin/view_properties/global'
+    os.makedirs(path, exist_ok=True)
+    old = subprocess.run(['getfattr', '--only-values', '-n', 'user.kde.fm.viewproperties#1', path],
+                         capture_output=True, text=True).stdout
+    hidden = 'HiddenFilesShown=true' in old  # mantém a escolha de mostrar ocultos
+    now = time.strftime('%Y,%m,%d,%H,%M,%S').replace(',0', ',')
+    props = ('[Dolphin]\nVersion=4\nViewMode=1\nSortRole=text\nSortOrder=0\nGroupedSorting=false\n'
+             'SortFoldersFirst=true\nVisibleRoles=Details_text,Details_modificationtime,Details_type,Details_size\n'
+             f'Timestamp={now}\n' + ('\n[Settings]\nHiddenFilesShown=true\n' if hidden else ''))
+    subprocess.run(['setfattr', '-n', 'user.kde.fm.viewproperties#1', '-v', props, path], check=True)
+    kw('General', 'ViewPropsTimestamp', now)   # pastas já vistas também passam a usar a lista
+    kw('DetailsMode', 'ExpandableFolders', 'false')
+
+
+# uma exibição para todas as pastas: escolher lista/ícones vale em todo lugar
+# (o Este Computador do dolphin-w11 é uma página própria e não depende disso)
+kw('General', 'GlobalViewProps', 'true')
 kw('General', 'HomeUrl', URL)
 kw('General', 'RememberOpenedTabs', 'false')
 kw('General', 'ShowStatusBar', '1')          # largura total, como o Explorador
@@ -90,4 +109,5 @@ os.makedirs(ui, exist_ok=True)
 shutil.copy(os.path.join(HERE, '..', '..', 'data', 'dolphin', 'dolphinui.rc'), f'{ui}/dolphinui.rc')
 places()
 view_props()
+default_list_view()
 print('Dolphin configurado: abre em Este Computador')

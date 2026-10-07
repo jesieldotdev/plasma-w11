@@ -186,7 +186,7 @@ index a29fe0d..47fa268 100644
      DolphinDockWidget *placesDock = new DolphinDockWidget(i18nc("@title:window", "Places"));
      placesDock->setLocked(lock);
 diff --git a/src/dolphinviewcontainer.cpp b/src/dolphinviewcontainer.cpp
-index 968919b..5357010 100644
+index 968919b..f3ba88d 100644
 --- a/src/dolphinviewcontainer.cpp
 +++ b/src/dolphinviewcontainer.cpp
 @@ -5,6 +5,7 @@
@@ -197,7 +197,21 @@ index 968919b..5357010 100644
  
  #include "admin/bar.h"
  #include "admin/workerintegration.h"
-@@ -178,6 +179,20 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
+@@ -160,6 +161,13 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
+         m_statusBar->showProgress(i18nc("@info:progress", "Sorting…"), percent);
+     });
+     connect(m_statusBar, &DolphinStatusBar::stopPressed, this, &DolphinViewContainer::stopDirectoryLoading);
++    connect(m_statusBar, &DolphinStatusBar::viewModeRequested, this, [this](int mode) {
++        m_view->setViewMode(static_cast<DolphinView::Mode>(mode));
++    });
++    connect(m_view, &DolphinView::modeChanged, m_statusBar, [this](DolphinView::Mode current) {
++        m_statusBar->setViewMode(current);
++    });
++    m_statusBar->setViewMode(m_view->viewMode());
+     connect(m_statusBar, &DolphinStatusBar::zoomLevelChanged, this, &DolphinViewContainer::slotStatusBarZoomLevelChanged);
+     connect(m_statusBar, &DolphinStatusBar::showMessage, this, [this](const QString &message, KMessageWidget::MessageType messageType) {
+         showMessage(message, messageType);
+@@ -178,6 +186,20 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
  
      m_topLayout->addWidget(m_messageWidget, positionFor.messageWidget, 0);
      m_topLayout->addWidget(m_view, positionFor.view, 0);
@@ -218,7 +232,7 @@ index 968919b..5357010 100644
      m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
      if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
          m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
-@@ -325,6 +340,16 @@ void DolphinViewContainer::disconnectUrlNavigator()
+@@ -325,6 +347,16 @@ void DolphinViewContainer::disconnectUrlNavigator()
      m_urlNavigatorConnected = nullptr;
  }
  
@@ -249,6 +263,19 @@ index 9c6dbb6..e968c0f 100644
      /** @returns true if the search bar is visible while not being in the process to hide itself. */
      bool isSearchBarVisible() const;
  
+diff --git a/src/kitemviews/kstandarditemlistview.cpp b/src/kitemviews/kstandarditemlistview.cpp
+index 53d9dd3..80e517b 100644
+--- a/src/kitemviews/kstandarditemlistview.cpp
++++ b/src/kitemviews/kstandarditemlistview.cpp
+@@ -19,7 +19,7 @@ KStandardItemListView::KStandardItemListView(QGraphicsWidget *parent)
+     setAcceptDrops(true);
+     setScrollOrientation(Qt::Vertical);
+     setVisibleRoles({"text"});
+-    setAlternateBackgrounds(true);
++    setAlternateBackgrounds(false); // plasma-w11: lista sem zebra, como o Explorador
+ }
+ 
+ KStandardItemListView::~KStandardItemListView() = default;
 diff --git a/src/panels/navigation/navigationpanel.cpp b/src/panels/navigation/navigationpanel.cpp
 new file mode 100644
 index 0000000..65ed3ad
@@ -871,6 +898,78 @@ index 1017d81..19b45eb 100644
      /**
       * All showing and hiding of this bar is supposed to go through this method. When hiding this bar, it emits all the necessary signals to restore the view
       * container to a non-search URL.
+diff --git a/src/statusbar/dolphinstatusbar.cpp b/src/statusbar/dolphinstatusbar.cpp
+index 4b2bb6f..a51fbfa 100644
+--- a/src/statusbar/dolphinstatusbar.cpp
++++ b/src/statusbar/dolphinstatusbar.cpp
+@@ -150,6 +150,22 @@ DolphinStatusBar::DolphinStatusBar(QWidget *parent)
+     m_topLayout->addWidget(m_progressTextLabel);
+     m_topLayout->addWidget(m_progressBar);
+ 
++    // plasma-w11: no canto, os botões Detalhes e Ícones grandes do Explorador
++    for (auto [button, icon, tip, mode] : {std::tuple{&m_detailsButton, "view-list-details", "Detalhes", 1},
++                                          std::tuple{&m_iconsButton, "view-list-icons", "Ícones grandes", 0}}) {
++        *button = new QToolButton(contentsContainer);
++        (*button)->setIcon(QIcon::fromTheme(QString::fromLatin1(icon)));
++        (*button)->setToolTip(QString::fromUtf8(tip));
++        (*button)->setAutoRaise(true);
++        (*button)->setCheckable(true);
++        (*button)->setIconSize(QSize(16, 16));
++        const int m = mode;
++        connect(*button, &QToolButton::clicked, this, [this, m]() {
++            Q_EMIT viewModeRequested(m);
++        });
++        m_topLayout->addWidget(*button);
++    }
++
+     readSettings();
+     setWhatsThis(xi18nc("@info:whatsthis Statusbar",
+                         "<para>This is "
+@@ -479,4 +495,12 @@ int DolphinStatusBar::preferredHeight() const
+     return m_spaceInfo->height();
+ }
+ 
++void DolphinStatusBar::setViewMode(int mode)
++{
++    if (m_detailsButton) {
++        m_detailsButton->setChecked(mode == 1);
++        m_iconsButton->setChecked(mode == 0);
++    }
++}
++
+ #include "moc_dolphinstatusbar.cpp"
+diff --git a/src/statusbar/dolphinstatusbar.h b/src/statusbar/dolphinstatusbar.h
+index 232a4ba..6054242 100644
+--- a/src/statusbar/dolphinstatusbar.h
++++ b/src/statusbar/dolphinstatusbar.h
+@@ -104,6 +104,8 @@ public:
+     int clippingAmount() const;
+ 
+ public Q_SLOTS:
++    /** plasma-w11: marca o botão do modo de exibição atual. */
++    void setViewMode(int mode);
+     void setUrl(const QUrl &url);
+     void setZoomLevel(int zoomLevel);
+ 
+@@ -115,6 +117,9 @@ Q_SIGNALS:
+ 
+     void zoomLevelChanged(int zoomLevel);
+ 
++    /** plasma-w11: botões Detalhes / Ícones grandes (valores de DolphinView::Mode). */
++    void viewModeRequested(int mode);
++
+     /**
+      * Requests for @p message with the given @p messageType to be shown to the user in a non-modal way.
+      */
+@@ -188,6 +193,8 @@ private:
+     StatusBarSpaceInfo *m_spaceInfo;
+ 
+     QSlider *m_zoomSlider;
++    QToolButton *m_detailsButton = nullptr;
++    QToolButton *m_iconsButton = nullptr;
+ 
+     QLabel *m_progressTextLabel;
+     CancelLoading m_cancelLoading = CancelLoading::Allowed;
 diff --git a/src/views/thispcpage.cpp b/src/views/thispcpage.cpp
 new file mode 100644
 index 0000000..a63327e
@@ -1314,3 +1413,21 @@ index 0000000..f8fc3ad
 +};
 +
 +#endif
+diff --git a/src/views/viewproperties.cpp b/src/views/viewproperties.cpp
+index f461ebb..b097514 100644
+--- a/src/views/viewproperties.cpp
++++ b/src/views/viewproperties.cpp
+@@ -227,7 +227,12 @@ ViewProperties::ViewProperties(const QUrl &url)
+         // On subsequent visits the user's saved properties should be preserved.
+         || (useGlobalViewProps && !(useSearchView || useTrashView || useRecentDocumentsView || useDownloadsView));
+ 
+-    if (propsOpt) {
++    if (propsOpt && !useGlobalViewProps && propsOpt->timestamp() < settings->viewPropsTimestamp()) {
++        // plasma-w11: configuração da pasta mais velha que o padrão atual ("aplicar a todas as
++        // pastas"): usa o padrão de verdade, em vez de só marcar como desatualizada
++        delete propsOpt;
++        m_node = defaultProperties();
++    } else if (propsOpt) {
+         m_node = propsOpt;
+     } else {
+         // no settings found for m_filepath, load defaults
