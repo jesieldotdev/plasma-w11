@@ -8,7 +8,7 @@ mkdir -p "$BK/config"
 info "Salvando o visual atual em $BK"
 
 FILES="kdeglobals kwinrc plasmarc kcminputrc konsolerc plasma-org.kde.plasma.desktop-appletsrc plasmashellrc
-kscreenlockerrc kwinrulesrc ksplashrc gtkrc gtkrc-2.0 xsettingsd"
+kscreenlockerrc kwinrulesrc ksplashrc gtkrc gtkrc-2.0 xsettingsd kded6rc kded_device_automounterrc"
 DIRS="Kvantum gtk-3.0 gtk-4.0 kdedefaults"
 for f in $FILES; do [ -e "$HOME/.config/$f" ] && cp -a "$HOME/.config/$f" "$BK/config/"; done
 for d in $DIRS; do [ -d "$HOME/.config/$d" ] && cp -a "$HOME/.config/$d" "$BK/config/"; done

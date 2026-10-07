@@ -231,6 +231,13 @@ mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
 cp "$HERE/data/wireplumber-sons-do-sistema.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
 systemctl --user restart wireplumber.service 2>/dev/null || true
 
+# pendrive / SSD externo: monta sozinho ao conectar (e no login, se já estiver conectado), como no Windows
+for k in AutomountEnabled AutomountOnLogin AutomountOnPlugin AutomountUnknownDevices; do
+    kw --file kded_device_automounterrc --group General --key "$k" true
+done
+kw --file kded6rc --group Module-device_automounter --key autoload true
+qdbus-qt6 org.kde.kded6 /kded loadModule device_automounter >/dev/null 2>&1 || true
+
 # acrílico do painel: desfoque forte com granulação
 kw --file kwinrc --group Effect-blur --key BlurStrength 15
 kw --file kwinrc --group Effect-blur --key NoiseStrength 3
