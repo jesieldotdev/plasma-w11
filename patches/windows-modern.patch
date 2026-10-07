@@ -2859,10 +2859,10 @@ index 903d546..e4c2373 100644
              horizontalAlignment: Text.AlignLeft
              verticalAlignment: Text.AlignBottom
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
-index 24c4c3f..6bb5f4a 100644
+index 24c4c3f..e90e71b 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
-@@ -21,17 +21,23 @@ import "components" as Components
+@@ -21,19 +21,28 @@ import "components" as Components
  Item {
      id: popup
  
@@ -2881,17 +2881,24 @@ index 24c4c3f..6bb5f4a 100644
      // gridUnit*24. updateMinSize() grows to the minimum, updateMaxSize()
      // shrinks to the maximum — both bypass the saved-size flag.
 -    Layout.minimumHeight: systemTrayState.activeApplet
++    // Configurações rápidas: altura do conteúdo (blocos + sliders + rodapé), como no Windows 11
++    readonly property int quickSettingsHeight: actionPanel.implicitHeight + actionPanel.Layout.topMargin
++        + quickFooter.implicitHeight + quickFooter.Layout.bottomMargin
 +    Layout.minimumHeight: overflowOnly ? overflowRows * overflowCell
 +        : systemTrayState.activeApplet
          ? Kirigami.Units.gridUnit * 24
-         : Kirigami.Units.gridUnit * 36
+-        : Kirigami.Units.gridUnit * 36
 -    Layout.maximumHeight: systemTrayState.activeApplet
++        : quickSettingsHeight
 +    Layout.maximumHeight: overflowOnly ? overflowRows * overflowCell
 +        : systemTrayState.activeApplet
          ? Kirigami.Units.gridUnit * 24
-         : -1 // no cap for action panel
+-        : -1 // no cap for action panel
++        : quickSettingsHeight
  
-@@ -54,7 +60,7 @@ Item {
+     property alias hiddenLayout: hiddenItemsView.layout
+     property alias plasmoidContainer: container
+@@ -54,7 +63,7 @@ Item {
          if (!pluginId) return
          const applet = Plasmoid.appletForPluginId(pluginId)
          if (applet) {
@@ -2900,7 +2907,7 @@ index 24c4c3f..6bb5f4a 100644
          }
      }
  
-@@ -224,8 +230,7 @@ Item {
+@@ -224,8 +233,7 @@ Item {
                  id: hiddenItemsView
                  Layout.fillWidth: true
                  Layout.fillHeight: true
@@ -2910,14 +2917,40 @@ index 24c4c3f..6bb5f4a 100644
                  KeyNavigation.up: pinButton
                  onVisibleChanged: {
                      if (visible) {
-@@ -237,6 +242,7 @@ Item {
+@@ -237,9 +245,33 @@ Item {
  
              ActionPanel {
                  id: actionPanel
 +                visible: !popup.overflowOnly
                  Layout.fillWidth: true
++                Layout.topMargin: Kirigami.Units.largeSpacing
                  onRequestPage: name => popup.activateFlyout(name)
              }
++
++            Item {
++                visible: !popup.overflowOnly
++                Layout.fillHeight: true
++            }
++
++            // Faixa de rodapé do Windows 11 (bateria à esquerda, energia e
++            // configurações à direita), encostada nas bordas do painel.
++            Components.Footer {
++                id: quickFooter
++                visible: !popup.overflowOnly
++                Layout.fillWidth: true
++                Layout.leftMargin: -dialog.leftPadding
++                Layout.rightMargin: -dialog.rightPadding
++                Layout.bottomMargin: -dialog.bottomPadding
++                showBattery: Plasmoid.configuration.showBattery
++                color: Qt.rgba(0, 0, 0, 0.18)
++                bottomLeftRadius: Kirigami.Units.cornerRadius
++                bottomRightRadius: Kirigami.Units.cornerRadius
++                onBatteryClicked: popup.activateFlyout("battery")
++                onBatteryInfoClicked: popup.activateFlyout("battery")
++            }
+         }
+ 
+         // Container for the active applet (themed or unknown)
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
 index 5e67066..3870ac2 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
@@ -3126,6 +3159,19 @@ index bda5919..8c913a3 100644
                  checked: page.blockSleep
                  onToggled: page._toggleBlockSleep()
              }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
+index 6b9433d..49dcd4c 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
+@@ -14,7 +14,7 @@ Rectangle {
+     property real scale: 1
+     property int footerHeight: 36 * scale
+     property bool showBattery: false
+-    property bool hasBattery: false
++    property bool hasBattery: batteryControl.hasBatteries
+ 
+     signal batteryClicked
+     signal batteryInfoClicked
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 index 720a05b..ba5e77d 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
