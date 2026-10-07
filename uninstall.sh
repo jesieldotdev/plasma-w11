@@ -37,6 +37,7 @@ if [ "$PURGE" = 1 ]; then
            "$ICONS/Windows-11-cursors" "$HOME/.local/share/sounds/Windows-11" \
            "$BIN/icones-painel" "$HOME/.local/share/applications/icones-painel.desktop" \
            "$BIN/barra-de-tarefas" "$HOME/.local/share/applications/barra-de-tarefas.desktop" \
+           "$BIN/projetar" \
            "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf" \
            "$STATE/qml"
     systemctl --user restart wireplumber.service 2>/dev/null || true

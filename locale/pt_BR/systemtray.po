@@ -401,3 +401,24 @@ msgstr "Conectado · %1%"
 
 msgid "Paired"
 msgstr "Emparelhado"
+
+msgid "Project"
+msgstr "Projetar"
+
+msgid "Project — choose how to use the displays"
+msgstr "Projetar — escolha como usar as telas"
+
+msgid "PC screen only"
+msgstr "Somente tela do PC"
+
+msgid "Duplicate"
+msgstr "Duplicar"
+
+msgid "Extend"
+msgstr "Estender"
+
+msgid "Second screen only"
+msgstr "Somente segunda tela"
+
+msgid "Connect a second display to choose how to use it."
+msgstr "Conecte uma segunda tela para escolher como usá-la."

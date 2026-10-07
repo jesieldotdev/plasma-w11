@@ -183,6 +183,7 @@ ENV
 
 # ── 8. utilitários "Ícones do painel" e "Configurações da barra de tarefas" ─
 mkdir -p "$HOME/.local/share/applications"
+install -m 755 "$HERE/tools/projetar" "$BIN/projetar"   # modos de projeção (Projetar na bandeja)
 for t in icones-painel barra-de-tarefas; do
     install -m 755 "$HERE/tools/$t" "$BIN/$t"
     sed "s|@BIN@|$BIN|" "$HERE/data/$t.desktop" > "$HOME/.local/share/applications/$t.desktop"

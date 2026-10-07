@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""plasma-w11: os modos de projeção do Windows (Win+P / "Projetar" nas configurações rápidas).
+
+    projetar estado     imprime o modo atual: pc, duplicar, estender, segunda (ou "uma" se só há uma tela)
+    projetar pc         Somente tela do PC
+    projetar duplicar   Duplicar
+    projetar estender   Estender
+    projetar segunda    Somente segunda tela
+"""
+import json
+import subprocess
+import sys
+
+PANEL = 7  # tipo de saída "Panel" do KScreen: a tela embutida do notebook
+
+
+def outputs():
+    out = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, check=True).stdout
+    return [o for o in json.loads(out)["outputs"] if o.get("connected")]
+
+
+def split(outs):
+    internal = [o for o in outs if o.get("type") == PANEL or o["name"].startswith(("eDP", "LVDS", "DSI"))]
+    external = [o for o in outs if o not in internal]
+    return internal, external
+
+
+def state():
+    internal, external = split(outputs())
+    if not internal or not external:
+        return "uma"
+    i_on = any(o["enabled"] for o in internal)
+    e_on = [o for o in external if o["enabled"]]
+    if i_on and not e_on:
+        return "pc"
+    if e_on and not i_on:
+        return "segunda"
+    ids = {o["id"] for o in internal}
+    if all(o.get("replicationSource") in ids for o in e_on):
+        return "duplicar"
+    return "estender"
+
+
+def apply(mode):
+    internal, external = split(outputs())
+    if not internal or not external:
+        return
+    args = []
+    first = internal[0]["name"]
+    if mode == "pc":
+        args += [f"output.{first}.enable", f"output.{first}.mirror.none"]
+        args += [f"output.{o['name']}.disable" for o in external]
+    elif mode == "segunda":
+        for o in external:
+            args += [f"output.{o['name']}.enable", f"output.{o['name']}.mirror.none"]
+        args += [f"output.{o['name']}.disable" for o in internal]
+    elif mode == "duplicar":
+        args += [f"output.{first}.enable", f"output.{first}.mirror.none"]
+        for o in external:
+            args += [f"output.{o['name']}.enable", f"output.{o['name']}.mirror.{first}"]
+    elif mode == "estender":
+        # cada tela com a posição que o KDE lembra; a externa à direita se estiverem sobrepostas
+        args += [f"output.{first}.enable", f"output.{first}.mirror.none"]
+        x = internal[0]["pos"]["x"] + round(internal[0]["size"]["width"] / internal[0].get("scale", 1))
+        for o in external:
+            args += [f"output.{o['name']}.enable", f"output.{o['name']}.mirror.none"]
+            if o["pos"] == internal[0]["pos"]:
+                args.append(f"output.{o['name']}.position.{x},{internal[0]['pos']['y']}")
+    else:
+        sys.exit(f"modo desconhecido: {mode}")
+    subprocess.run(["kscreen-doctor", *args], capture_output=True)
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "estado"
+    if cmd == "estado":
+        print(state())
+    else:
+        apply(cmd)

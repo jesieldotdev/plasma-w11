@@ -2845,7 +2845,7 @@ index e59c813..06b09f1 100644
                      var appActs = Tools.buildAppActions(i18n, favModel,
                                                          entry.favoriteId,
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
-index 401727e..59013d0 100644
+index 401727e..23f3d94 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
 @@ -162,6 +162,8 @@ ecm_target_qml_sources(org.kde.windowsmodern.systemtray
@@ -2857,8 +2857,17 @@ index 401727e..59013d0 100644
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/SectionHeader.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/PageHeader.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Page.qml
+@@ -198,6 +200,8 @@ ecm_target_qml_sources(org.kde.windowsmodern.systemtray
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/ColorSchemeToggle.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/MicMuteToggle.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/HotspotToggle.qml
++        ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/ProjectToggle.qml
++        ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/ProjectPage.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/CastInvertToggle.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/InhibitSleepToggle.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/components/TouchpadToggle.qml
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
-index bd04add..ee46770 100644
+index bd04add..013ca9e 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
 @@ -29,6 +29,10 @@
@@ -2872,6 +2881,16 @@ index bd04add..ee46770 100644
      <entry name="reverseIconOrder" type="bool">
        <label>Whether to reverse the order of icons in the panel</label>
        <default>false</default>
+@@ -89,6 +93,9 @@
+     <entry name="showHotspot" type="Bool">
+       <default>true</default>
+     </entry>
++    <entry name="showProject" type="Bool">
++      <default>true</default>
++    </entry>
+     <entry name="showTouchpad" type="Bool">
+       <default>true</default>
+     </entry>
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml
 index 903d546..e4c2373 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml
@@ -2936,6 +2955,71 @@ index 903d546..e4c2373 100644
  
              horizontalAlignment: Text.AlignLeft
              verticalAlignment: Text.AlignBottom
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
+index 4e8c2f6..9e8515f 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
+@@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
+ 
+ import QtQuick
+ import QtQuick.Layouts
++import QtQuick.Window
+ 
+ import org.kde.plasma.plasmoid
+ 
+@@ -18,12 +19,35 @@ ColumnLayout {
+ 
+     signal requestPage(string name)
+ 
++    // página aberta dentro do próprio painel (não é de um widget da bandeja): "" ou "project"
++    property string localPage: ""
++    property real gridsHeight: 0
++
+     readonly property real scale: Plasmoid.configuration.scale / 100
+ 
+     Layout.fillWidth: true
+     spacing: 16 * actionPanel.scale
+ 
++    // ao fechar o painel, volta para os botões
++    Connections {
++        target: actionPanel.Window.window
++        function onVisibleChanged() {
++            if (!actionPanel.Window.window.visible) actionPanel.localPage = "";
++        }
++    }
++
++    Components.ProjectPage {
++        visible: actionPanel.localPage === "project"
++        Layout.fillWidth: true
++        // mesma altura dos botões e sliders: o painel não pula ao trocar
++        Layout.preferredHeight: Math.max(implicitHeight, actionPanel.gridsHeight)
++        onBack: actionPanel.localPage = ""
++    }
++
+     GridLayout {
++        id: tilesGrid
++        visible: actionPanel.localPage === ""
++        onHeightChanged: if (visible) actionPanel.gridsHeight = height + slidersGrid.height + actionPanel.spacing
+         Layout.fillWidth: true
+         Layout.leftMargin: 14 * actionPanel.scale
+         Layout.rightMargin: 14 * actionPanel.scale
+@@ -69,9 +93,16 @@ ColumnLayout {
+             Layout.fillWidth: true
+             visible: Plasmoid.configuration.showHotspot
+         }
++        Components.ProjectToggle {
++            Layout.fillWidth: true
++            visible: Plasmoid.configuration.showProject
++            onClicked: actionPanel.localPage = "project"
++        }
+     }
+ 
+     GridLayout {
++        id: slidersGrid
++        visible: actionPanel.localPage === ""
+         Layout.fillWidth: true
+         Layout.leftMargin: 14 * actionPanel.scale
+         Layout.rightMargin: 14 * actionPanel.scale
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml
 index c1bf279..7a2a227 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml
@@ -4938,6 +5022,108 @@ index f8becd6..143d559 100644
                      default:
                          return modelData;
                      }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml
+new file mode 100644
+index 0000000..9c0fca2
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml
+@@ -0,0 +1,81 @@
++/*
++    Projetar, como no Windows 11 (Win+P): Somente tela do PC, Duplicar,
++    Estender e Somente segunda tela. Quem aplica é o "projetar" do plasma-w11
++    (kscreen-doctor por baixo).
++*/
++import QtQuick
++import QtQuick.Layouts
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.plasma.plasma5support as Plasma5Support
++import org.kde.kirigami as Kirigami
++import "../lib" as Lib
++
++Lib.Page {
++    id: page
++
++    title: i18n("Project")
++    contentFillsHeight: false
++
++    property string mode: ""
++    readonly property string tool: "\"$HOME/.local/bin/projetar\""
++
++    function refresh() {
++        runner.run(tool + " estado");
++    }
++
++    Plasma5Support.DataSource {
++        id: runner
++        engine: "executable"
++        connectedSources: []
++        onNewData: function (sourceName, data) {
++            if (sourceName.endsWith(" estado")) {
++                page.mode = (data["stdout"] || "").trim();
++            } else {
++                // depois de aplicar, o KScreen leva um instante para assentar
++                refreshLater.restart();
++            }
++            disconnectSource(sourceName);
++        }
++        function run(cmd) {
++            connectSource(cmd);
++        }
++    }
++    Timer { id: refreshLater; interval: 800; onTriggered: page.refresh() }
++
++    onVisibleChanged: if (visible) refresh()
++    Component.onCompleted: refresh()
++
++    PlasmaComponents3.Label {
++        visible: page.mode === "uma"
++        Layout.fillWidth: true
++        Layout.leftMargin: 18
++        Layout.rightMargin: 18
++        Layout.bottomMargin: 8
++        wrapMode: Text.Wrap
++        opacity: 0.7
++        text: i18n("Connect a second display to choose how to use it.")
++    }
++
++    Repeater {
++        model: [
++            { id: "pc",       text: i18n("PC screen only"),     icon: "computer-laptop-symbolic" },
++            { id: "duplicar", text: i18n("Duplicate"),          icon: "edit-copy-symbolic" },
++            { id: "estender", text: i18n("Extend"),             icon: "view-split-left-right-symbolic" },
++            { id: "segunda",  text: i18n("Second screen only"), icon: "video-display-symbolic" }
++        ]
++        delegate: Lib.ListRow {
++            required property var modelData
++            enabled: page.mode !== "uma"
++            opacity: enabled ? 1 : 0.5
++            iconSource: modelData.icon
++            text: modelData.text
++            selected: page.mode === modelData.id
++            onClicked: {
++                page.mode = modelData.id;
++                runner.run(page.tool + " " + modelData.id);
++            }
++        }
++    }
++
++    Item { Layout.preferredHeight: 8 }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml
+new file mode 100644
+index 0000000..7d64d49
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml
+@@ -0,0 +1,9 @@
++import QtQuick
++import "../lib" as Lib
++
++// "Projetar" do Windows: abre a página com os modos das telas
++Lib.Tile {
++    label: i18n("Project")
++    iconSource: "video-display-symbolic"
++    tooltipText: i18n("Project — choose how to use the displays")
++}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
 index 371cf2f..64e1f40 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
