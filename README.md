@@ -26,6 +26,11 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
 - **Configurações do Windows 11**: o [settings-w11](https://github.com/jesieldotdev/settings-w11),
   projeto à parte: as Configurações do KDE organizadas como as do Windows (barra lateral com
   Sistema, Bluetooth e dispositivos, Rede & Internet, Personalização…, cartões e pesquisa).
+- **Controles do Windows 11 nos apps do KDE**: botões, chaves, sliders, caixas de
+  seleção, opções, dropdowns, campos de texto e barras de progresso de todos os apps e
+  módulos em QML (Configurações, Discover, Bluetooth…) com o visual do Windows. É um
+  estilo do Qt Quick (`org.kde.w11`, em `style/`); o que ele não cobre usa o do KDE.
+  Vale a partir do próximo login.
 - **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
   alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
   barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,
@@ -82,6 +87,7 @@ Rode `./install.sh --skip-deps` de novo para recompilar.
 | `tools/fluent_icons.py` | gera o tema de ícones da bandeja a partir da Segoe Fluent Icons |
 | `tools/windows-cursors.sh`, `tools/windows-sounds.sh` | convertem cursores e sons do Windows |
 | `tools/icones-painel` | o utilitário "Ícones do painel" |
+| `style/org/kde/w11/` | estilo dos controles do Qt Quick (QML) no visual do Windows 11 |
 | `scripts/` | backup, tema do Plasma, funções comuns |
 | `data/` | ajustes do painel, bordas arredondadas, atalho do menu |
 | `locale/` | traduções do menu Iniciar |

@@ -15,6 +15,8 @@ BK="$STATE/backups/latest"
 [ -x "$BK/restore.sh" ] || die "nenhum backup encontrado em $STATE/backups."
 info "Restaurando $(readlink -f "$BK")"
 bash "$BK/restore.sh"
+# o estilo dos controles QML deixa de valer na próxima sessão
+rm -f "$HOME/.config/plasma-workspace/env/plasma-w11-qml-style.sh"
 
 if [ "$PURGE" = 1 ]; then
     info "Apagando os arquivos instalados"
@@ -27,7 +29,8 @@ if [ "$PURGE" = 1 ]; then
            "$ICONS/Windows-11-cursors" "$HOME/.local/share/sounds/Windows-11" \
            "$BIN/icones-painel" "$HOME/.local/share/applications/icones-painel.desktop" \
            "$BIN/barra-de-tarefas" "$HOME/.local/share/applications/barra-de-tarefas.desktop" \
-           "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
+           "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf" \
+           "$STATE/qml"
     systemctl --user restart wireplumber.service 2>/dev/null || true
     find "$LOCALE_DIR" -name 'plasma_applet_org.kde.windowsmodern.*.mo' -delete 2>/dev/null || true
     QT_PLUGINS=$(qtpaths6 --plugin-dir 2>/dev/null || true)          # pkg-config pode devolver vazio sem erro

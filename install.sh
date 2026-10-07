@@ -169,6 +169,18 @@ fi
 info "Tema do Plasma Windows-11-dark"
 bash "$HERE/scripts/make-plasma-theme.sh"
 
+# ── 7b. estilo w11 dos controles QML (apps do KDE, módulos das Configurações) ─
+info "Estilo dos controles (botões, chaves, sliders) dos apps do KDE"
+QML_STYLE="$STATE/qml"
+rm -rf "$QML_STYLE/org/kde/w11"
+mkdir -p "$QML_STYLE/org/kde" "$HOME/.config/plasma-workspace/env"
+cp -r "$HERE/style/org/kde/w11" "$QML_STYLE/org/kde/"
+cat > "$HOME/.config/plasma-workspace/env/plasma-w11-qml-style.sh" <<ENV
+# plasma-w11: controles do Qt Quick com o visual do Windows 11 (o que faltar vem do estilo do KDE)
+export QML_IMPORT_PATH="$QML_STYLE\${QML_IMPORT_PATH:+:\$QML_IMPORT_PATH}"
+export QT_QUICK_CONTROLS_STYLE=org.kde.w11
+ENV
+
 # ── 8. utilitários "Ícones do painel" e "Configurações da barra de tarefas" ─
 mkdir -p "$HOME/.local/share/applications"
 for t in icones-painel barra-de-tarefas; do
