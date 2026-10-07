@@ -2858,6 +2858,30 @@ index 903d546..e4c2373 100644
  
              horizontalAlignment: Text.AlignLeft
              verticalAlignment: Text.AlignBottom
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml
+index c1bf279..7a2a227 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/CurrentItemHighLight.qml
+@@ -31,7 +31,18 @@ KSvg.FrameSvgItem {
+ 
+     z: -1 // always draw behind icons
+ 
+-    imagePath: "widgets/tabbar"
++    // Windows 11: sem a linha azul da "aba ativa"; o item aberto ganha só um
++    // fundo arredondado discreto (o desenho do tema fica desligado).
++    imagePath: ""
++
++    Rectangle {
++        anchors.fill: parent
++        anchors.topMargin: Kirigami.Units.smallSpacing
++        anchors.bottomMargin: Kirigami.Units.smallSpacing
++        radius: Kirigami.Units.cornerRadius
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
++        visible: currentItemHighLight.highlightedItem !== null
++    }
+     prefix: {
+         let prefix;
+         switch (location) {
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
 index 24c4c3f..e90e71b 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
@@ -3146,10 +3170,90 @@ index 2ba5c32..c1299a4 100644
              if (activeApplet) {
                  // if not expanded we don't have an active applet anymore
                  activeApplet.expanded = false
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/AirplaneToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/AirplaneToggle.qml
+index 05fdb15..42d5fd8 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/AirplaneToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/AirplaneToggle.qml
+@@ -9,7 +9,7 @@ Lib.Tile {
+         id: handler
+     }
+ 
+-    label: qsTr("Airplane")
++    label: i18n("Airplane")
+     iconSource: "network-flightmode-on-symbolic"
+     active: PlasmaNM.Configuration.airplaneModeEnabled
+ 
+@@ -19,5 +19,5 @@ Lib.Tile {
+         PlasmaNM.Configuration.airplaneModeEnabled = enable;
+     }
+ 
+-    tooltipText: active ? qsTr("Airplane Mode — On") : qsTr("Airplane Mode — Off")
++    tooltipText: active ? i18n("Airplane Mode — On") : i18n("Airplane Mode — Off")
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
-index bda5919..8c913a3 100644
+index bda5919..e8bb7d5 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
+@@ -11,7 +11,7 @@ import "../lib" as Lib
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Battery")
++    title: i18n("Battery")
+ 
+     BatteryControlModel {
+         id: batteryControl
+@@ -106,7 +106,7 @@ Lib.Page {
+         spacing: 8
+ 
+         PlasmaComponents3.Label {
+-            text: page.isFull ? qsTr("Fully charged") : page.isCharging ? qsTr("Charging") : qsTr("Discharging")
++            text: page.isFull ? i18n("Fully charged") : page.isCharging ? i18n("Charging") : i18n("Discharging")
+             font.pixelSize: 10
+             opacity: 0.6
+             color: Kirigami.Theme.textColor
+@@ -154,7 +154,7 @@ Lib.Page {
+             visible: page.health !== "--"
+ 
+             PlasmaComponents3.Label {
+-                text: qsTr("Battery health")
++                text: i18n("Battery health")
+                 font.pixelSize: 9
+                 opacity: 0.5
+                 color: Kirigami.Theme.textColor
+@@ -192,7 +192,7 @@ Lib.Page {
+         }
+ 
+         Lib.SectionHeader {
+-            text: qsTr("Power Profiles")
++            text: i18n("Power Profiles")
+         }
+ 
+         Repeater {
+@@ -203,11 +203,11 @@ Lib.Page {
+                 text: {
+                     switch (modelData) {
+                     case "performance":
+-                        return qsTr("Performance");
++                        return i18n("Performance");
+                     case "balanced":
+-                        return qsTr("Balanced");
++                        return i18n("Balanced");
+                     case "power-saver":
+-                        return qsTr("Power Saver");
++                        return i18n("Power Saver");
+                     default:
+                         return modelData;
+                     }
+@@ -248,7 +248,7 @@ Lib.Page {
+             }
+ 
+             PlasmaComponents3.Label {
+-                text: qsTr("Block sleep & screen lock")
++                text: i18n("Block sleep & screen lock")
+                 font.pixelSize: 12
+                 color: Kirigami.Theme.textColor
+             }
 @@ -257,7 +257,7 @@ Lib.Page {
                  Layout.fillWidth: true
              }
@@ -3159,8 +3263,310 @@ index bda5919..8c913a3 100644
                  checked: page.blockSleep
                  onToggled: page._toggleBlockSleep()
              }
+@@ -265,7 +265,7 @@ Lib.Page {
+     }
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("Power settings")
++        text: i18n("Power settings")
+         onClicked: Qt.openUrlExternally("systemsettings://kcm_powerdevilprofilesconfig")
+     }
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatterySaverToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatterySaverToggle.qml
+index 73e39a1..3e8255a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatterySaverToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatterySaverToggle.qml
+@@ -13,7 +13,7 @@ Lib.SplitTile {
+     readonly property bool available: powerProfiles.isPowerProfileDaemonInstalled && powerProfiles.profiles.indexOf("power-saver") >= 0
+ 
+     visible: available
+-    label: qsTr("Battery Saver")
++    label: i18n("Battery Saver")
+     iconSource: "battery-low-symbolic"
+     active: saverOn
+ 
+@@ -28,11 +28,11 @@ Lib.SplitTile {
+     tooltipText: {
+         switch (powerProfiles.activeProfile) {
+         case "performance":
+-            return qsTr("Power Mode — Performance");
++            return i18n("Power Mode — Performance");
+         case "power-saver":
+-            return qsTr("Power Mode — Power Saver");
++            return i18n("Power Mode — Power Saver");
+         default:
+-            return qsTr("Power Mode — Balanced");
++            return i18n("Power Mode — Balanced");
+         }
+     }
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
+index 256dc7f..f5cae74 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
+@@ -10,12 +10,12 @@ import "../lib" as Lib
+ Lib.DetailPage {
+     id: page
+ 
+-    title: qsTr("Bluetooth")
++    title: i18n("Bluetooth")
+     switchChecked: page.btOn
+-    emptyText: page.btOn ? qsTr("No devices paired") : qsTr("Bluetooth is off")
++    emptyText: page.btOn ? i18n("No devices paired") : i18n("Bluetooth is off")
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More Bluetooth settings")
++        text: i18n("More Bluetooth settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_bluetooth")
+     }
+ 
+@@ -35,7 +35,7 @@ Lib.DetailPage {
+     listView.header: PlasmaComponents3.Button {
+         width: listView.width
+         height: 32
+-        text: qsTr("Add new device")
++        text: i18n("Add new device")
+         icon.name: "list-add"
+         flat: true
+         visible: page.btOn
+@@ -106,7 +106,7 @@ Lib.DetailPage {
+                     }
+ 
+                     PlasmaComponents3.Label {
+-                        text: modelData.connected ? qsTr("Connected") : qsTr("Disconnected")
++                        text: modelData.connected ? i18n("Connected") : i18n("Disconnected")
+                         color: Kirigami.Theme.textColor
+                         opacity: modelData.connected ? 0.5 : 0.3
+                         font.pixelSize: 9
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
+index fee7f71..c672869 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
+@@ -10,7 +10,7 @@ Lib.SplitTile {
+ 
+     property QtObject btManager: BluezQt.Manager
+ 
+-    label: qsTr("Bluetooth")
++    label: i18n("Bluetooth")
+     iconSource: Funcs.btStatus(btManager).icon
+     active: Funcs.btStatus(btManager).active
+ 
+@@ -27,10 +27,10 @@ Lib.SplitTile {
+ 
+     tooltipText: {
+         if (!Funcs.btStatus(btManager).active)
+-            return qsTr("Bluetooth — Off");
++            return i18n("Bluetooth — Off");
+         if (connectedCount > 0)
+-            return qsTr("Bluetooth — %1 connected").arg(connectedCount);
+-        return qsTr("Bluetooth — On, not connected");
++            return i18n("Bluetooth — %1 connected", connectedCount);
++        return i18n("Bluetooth — On, not connected");
+     }
+ 
+     onRightClicked: btMenu.popup()
+@@ -41,17 +41,17 @@ Lib.SplitTile {
+         id: btMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Add new device…")
++            text: i18n("Add new device…")
+             icon.name: "list-add"
+             onClicked: btExec.exec("bluedevil-wizard")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Send file…")
++            text: i18n("Send file…")
+             icon.name: "document-send"
+             onClicked: btExec.exec("bluedevil-sendfile")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Bluetooth settings")
++            text: i18n("Bluetooth settings")
+             icon.name: "configure"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_bluetooth")
+         }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BrightnessPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BrightnessPage.qml
+index 61af0f8..43c116f 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BrightnessPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BrightnessPage.qml
+@@ -10,7 +10,7 @@ import "../lib" as Lib
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Brightness")
++    title: i18n("Brightness")
+     contentFillsHeight: false
+ 
+     ScreenBrightnessControl {
+@@ -77,7 +77,7 @@ Lib.Page {
+ 
+                 PlasmaComponents3.Label {
+                     Layout.leftMargin: 22
+-                    text: modelData.label || qsTr("Display %1").arg(index + 1)
++                    text: modelData.label || i18n("Display %1", index + 1)
+                     font.pixelSize: 10
+                     opacity: 0.5
+                     color: Kirigami.Theme.textColor
+@@ -127,11 +127,11 @@ Lib.Page {
+ 
+     footer: ColumnLayout {
+         Lib.MoreSettingsLink {
+-            text: qsTr("Night color settings")
++            text: i18n("Night color settings")
+             onClicked: KCMLauncher.openSystemSettings("kcm_nightcolor")
+         }
+         Lib.MoreSettingsLink {
+-            text: qsTr("Display settings")
++            text: i18n("Display settings")
+             onClicked: KCMLauncher.openSystemSettings("kcm_kscreen")
+         }
+     }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/CastInvertToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/CastInvertToggle.qml
+index ec1c8b4..54c5d2d 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/CastInvertToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/CastInvertToggle.qml
+@@ -5,7 +5,7 @@ import "../lib" as Lib
+ Lib.Tile {
+     id: tile
+ 
+-    label: qsTr("Invert Colors")
++    label: i18n("Invert Colors")
+     iconSource: "preferences-desktop-effects"
+     active: false
+ 
+@@ -19,5 +19,5 @@ Lib.Tile {
+         });
+     }
+ 
+-    tooltipText: qsTr("Invert Colors — Toggle")
++    tooltipText: i18n("Invert Colors — Toggle")
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ClipboardPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ClipboardPage.qml
+index 9475f87..4e3a899 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ClipboardPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ClipboardPage.qml
+@@ -15,11 +15,11 @@ import "../js/funcs.js" as Funcs
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Clipboard")
++    title: i18n("Clipboard")
+     contentFillsHeight: false
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More clipboard settings")
++        text: i18n("More clipboard settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_keys")
+     }
+ 
+@@ -85,7 +85,7 @@ Lib.Page {
+ 
+                         PlasmaComponents3.Label {
+                             Layout.fillWidth: true
+-                            text: model.DisplayText || qsTr("(empty)")
++                            text: model.DisplayText || i18n("(empty)")
+                             color: Kirigami.Theme.textColor
+                             font.pixelSize: 11
+                             elide: Text.ElideRight
+@@ -106,7 +106,7 @@ Lib.Page {
+         PlasmaComponents3.Label {
+             Layout.fillWidth: true
+             Layout.topMargin: 10
+-            text: qsTr("Clipboard is empty")
++            text: i18n("Clipboard is empty")
+             color: Kirigami.Theme.textColor
+             opacity: 0.5
+             font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ColorSchemeToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ColorSchemeToggle.qml
+index 1f3e910..0feed01 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ColorSchemeToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ColorSchemeToggle.qml
+@@ -10,7 +10,7 @@ Lib.Tile {
+ 
+     property bool darkMode: ColorType.isDark(Kirigami.Theme.backgroundColor)
+ 
+-    label: darkMode ? qsTr("Dark Mode") : qsTr("Light Mode")
++    label: darkMode ? i18n("Dark Mode") : i18n("Light Mode")
+     iconSource: darkMode ? "weather-clear-night-symbolic" : "weather-clear-symbolic"
+     active: false
+ 
+@@ -26,7 +26,7 @@ Lib.Tile {
+         colorschemeExec.exec("plasma-apply-lookandfeel --apply " + target);
+     }
+ 
+-    tooltipText: darkMode ? qsTr("Switch to light mode") : qsTr("Switch to dark mode")
++    tooltipText: darkMode ? i18n("Switch to light mode") : i18n("Switch to dark mode")
+ 
+     Plasma5Support.DataSource {
+         id: colorschemeExec
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DeviceNotifierPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DeviceNotifierPage.qml
+index 87a5ec7..4139ed5 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DeviceNotifierPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DeviceNotifierPage.qml
+@@ -16,11 +16,11 @@ import "../lib" as Lib
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Devices")
++    title: i18n("Devices")
+     contentFillsHeight: false
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More device settings")
++        text: i18n("More device settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_removabledevices")
+     }
+ 
+@@ -59,7 +59,7 @@ Lib.Page {
+             if (data["Removable"] === true || data["Hotplug"] === true) {
+                 connected.push({
+                     udi: udi,
+-                    description: data["Description"] || data["Product"] || qsTr("Removable device"),
++                    description: data["Description"] || data["Product"] || i18n("Removable device"),
+                     icon: data["Icon"] || "drive-removable-media",
+                     mounted: data["Mounted"] === true,
+                     vendor: data["Vendor"] || "",
+@@ -144,7 +144,7 @@ Lib.Page {
+                             }
+ 
+                             PlasmaComponents3.Label {
+-                                text: modelData.mounted ? qsTr("Mounted") : qsTr("Not mounted")
++                                text: modelData.mounted ? i18n("Mounted") : i18n("Not mounted")
+                                 color: Kirigami.Theme.textColor
+                                 opacity: 0.4
+                                 font.pixelSize: 9
+@@ -187,7 +187,7 @@ Lib.Page {
+         PlasmaComponents3.Label {
+             Layout.fillWidth: true
+             Layout.topMargin: 10
+-            text: qsTr("No devices connected")
++            text: i18n("No devices connected")
+             color: Kirigami.Theme.textColor
+             opacity: 0.5
+             font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DndToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DndToggle.qml
+index 0ebaaed..fb49b4f 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DndToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/DndToggle.qml
+@@ -10,7 +10,7 @@ Lib.Tile {
+         id: notificationSettings
+     }
+ 
+-    label: qsTr("Do Not Disturb")
++    label: i18n("Do Not Disturb")
+     iconSource: Funcs.checkInhibition(notificationSettings) ? "notifications-disabled" : "notifications"
+     active: Funcs.checkInhibition(notificationSettings)
+ 
+@@ -27,5 +27,5 @@ Lib.Tile {
+         notificationSettings.save();
+     }
+ 
+-    tooltipText: Funcs.checkInhibition(notificationSettings) ? qsTr("Do Not Disturb — On") : qsTr("Do Not Disturb — Off")
++    tooltipText: Funcs.checkInhibition(notificationSettings) ? i18n("Do Not Disturb — On") : i18n("Do Not Disturb — Off")
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
-index 6b9433d..49dcd4c 100644
+index 6b9433d..0fbb524 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/Footer.qml
 @@ -14,7 +14,7 @@ Rectangle {
@@ -3172,16 +3578,539 @@ index 6b9433d..49dcd4c 100644
  
      signal batteryClicked
      signal batteryInfoClicked
+@@ -34,12 +34,12 @@ Rectangle {
+         const pct = batteryControl.percent + "%";
+         const charging = batteryControl.state === BatteryControlModel.Charging || batteryControl.state === BatteryControlModel.FullyCharged;
+         if (charging)
+-            return qsTr("Charging — %1").arg(pct);
++            return i18n("Charging — %1", pct);
+         const remaining = batteryControl.remainingMsec;
+         if (remaining && remaining > 0) {
+             const h = Math.floor(remaining / 3600);
+             const m = Math.floor((remaining % 3600) / 60);
+-            return qsTr("%1 — %2h %3m remaining").arg(pct).arg(h).arg(m);
++            return i18n("%1 — %2h %3m remaining", pct, h, m);
+         }
+         return pct;
+     }
+@@ -68,7 +68,7 @@ Rectangle {
+             anchors.rightMargin: 12
+             anchors.verticalCenter: parent.verticalCenter
+             iconSource: "system-shutdown"
+-            tooltipText: qsTr("Power off / Log out")
++            tooltipText: i18n("Power off / Log out")
+             onClicked: {
+                 var session = Qt.createQmlObject('import org.kde.plasma.private.sessions as Sessions; Sessions.SessionManagement {}', powerBtn, "powerDyn");
+                 session.requestLogoutPrompt();
+@@ -82,7 +82,7 @@ Rectangle {
+             anchors.right: parent.right
+             anchors.verticalCenter: parent.verticalCenter
+             iconSource: "configure"
+-            tooltipText: qsTr("Open System Settings")
++            tooltipText: i18n("Open System Settings")
+             onClicked: KCMLauncher.openSystemSettings("")
+             onRightClicked: gearMenu.popup()
+         }
+@@ -92,12 +92,12 @@ Rectangle {
+         id: batteryMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Power settings")
++            text: i18n("Power settings")
+             icon.name: "configure"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_powerdevilprofilesconfig")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Show battery info")
++            text: i18n("Show battery info")
+             icon.name: "battery"
+             onClicked: footer.batteryInfoClicked()
+         }
+@@ -107,27 +107,27 @@ Rectangle {
+         id: gearMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Display settings")
++            text: i18n("Display settings")
+             icon.name: "preferences-desktop-display"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_kscreen")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Sound settings")
++            text: i18n("Sound settings")
+             icon.name: "audio-volume-high"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_pulseaudio")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Network settings")
++            text: i18n("Network settings")
+             icon.name: "network-wireless"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_networkmanagement")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Power settings")
++            text: i18n("Power settings")
+             icon.name: "battery"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_powerdevilprofilesconfig")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Notification settings")
++            text: i18n("Notification settings")
+             icon.name: "notifications"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_notifications")
+         }
+@@ -137,32 +137,32 @@ Rectangle {
+         id: powerMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Lock")
++            text: i18n("Lock")
+             icon.name: "system-lock-screen"
+             onClicked: footer._lockScreen()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Log out")
++            text: i18n("Log out")
+             icon.name: "system-log-out"
+             onClicked: footer._logOut()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Suspend")
++            text: i18n("Suspend")
+             icon.name: "system-suspend"
+             onClicked: footer._suspend()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Hibernate")
++            text: i18n("Hibernate")
+             icon.name: "system-hibernate"
+             onClicked: footer._hibernate()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Restart")
++            text: i18n("Restart")
+             icon.name: "system-restart"
+             onClicked: footer._restart()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Shut down")
++            text: i18n("Shut down")
+             icon.name: "system-shutdown"
+             onClicked: footer._shutDown()
+         }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/HotspotToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/HotspotToggle.qml
+index 9a27c60..1191631 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/HotspotToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/HotspotToggle.qml
+@@ -12,7 +12,7 @@ Lib.Tile {
+     readonly property bool hotspotSupported: handler.hotspotSupported
+     property bool hotspotActive: false
+ 
+-    label: qsTr("Hotspot")
++    label: i18n("Hotspot")
+     iconSource: "network-wireless-hotspot"
+     active: hotspotActive
+     visible: hotspotSupported
+@@ -27,5 +27,5 @@ Lib.Tile {
+         }
+     }
+ 
+-    tooltipText: hotspotActive ? qsTr("Hotspot — On") : qsTr("Hotspot — Off")
++    tooltipText: hotspotActive ? i18n("Hotspot — On") : i18n("Hotspot — Off")
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/InhibitSleepToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/InhibitSleepToggle.qml
+index b6abdfa..6e3826a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/InhibitSleepToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/InhibitSleepToggle.qml
+@@ -5,7 +5,7 @@ import "../lib" as Lib
+ Lib.Tile {
+     id: tile
+ 
+-    label: blockSleep ? qsTr("Sleep Blocked") : qsTr("No Sleep")
++    label: blockSleep ? i18n("Sleep Blocked") : i18n("No Sleep")
+     iconSource: blockSleep ? "system-suspend-inhibited" : "system-suspend-uninhibited"
+     active: blockSleep
+ 
+@@ -55,5 +55,5 @@ Lib.Tile {
+         }
+     }
+ 
+-    tooltipText: blockSleep ? qsTr("Sleep Inhibited") : qsTr("Sleep Allowed")
++    tooltipText: blockSleep ? i18n("Sleep Inhibited") : i18n("Sleep Allowed")
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MediaControllerPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MediaControllerPage.qml
+index 5f05477..b5111b9 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MediaControllerPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MediaControllerPage.qml
+@@ -15,11 +15,11 @@ import "../lib" as Lib
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Media")
++    title: i18n("Media")
+     contentFillsHeight: false
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More media settings")
++        text: i18n("More media settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_keys")
+     }
+ 
+@@ -104,7 +104,7 @@ Lib.Page {
+ 
+                             PlasmaComponents3.Label {
+                                 Layout.fillWidth: true
+-                                text: page.activePlayer ? (page.activePlayer.title || qsTr("Unknown track")) : ""
++                                text: page.activePlayer ? (page.activePlayer.title || i18n("Unknown track")) : ""
+                                 color: Kirigami.Theme.textColor
+                                 font.pixelSize: 12
+                                 font.bold: true
+@@ -113,7 +113,7 @@ Lib.Page {
+ 
+                             PlasmaComponents3.Label {
+                                 Layout.fillWidth: true
+-                                text: page.activePlayer ? (page.activePlayer.artist || qsTr("Unknown artist")) : ""
++                                text: page.activePlayer ? (page.activePlayer.artist || i18n("Unknown artist")) : ""
+                                 color: Kirigami.Theme.textColor
+                                 opacity: 0.6
+                                 font.pixelSize: 10
+@@ -230,7 +230,7 @@ Lib.Page {
+         PlasmaComponents3.Label {
+             Layout.fillWidth: true
+             Layout.topMargin: 10
+-            text: qsTr("No media playing")
++            text: i18n("No media playing")
+             color: Kirigami.Theme.textColor
+             opacity: 0.5
+             font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MicMuteToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MicMuteToggle.qml
+index 2e986b3..b9426ef 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MicMuteToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/MicMuteToggle.qml
+@@ -16,7 +16,7 @@ Lib.Tile {
+     readonly property bool muted: preferredSource ? preferredSource.muted : true
+     readonly property bool available: preferredSource && sourceFilterModel.count > 0
+ 
+-    label: muted ? qsTr("Mic Muted") : qsTr("Mic On")
++    label: muted ? i18n("Mic Muted") : i18n("Mic On")
+     iconSource: muted ? "audio-input-microphone-muted" : "microphone-sensitivity-high"
+     active: !muted
+     visible: available
+@@ -26,5 +26,5 @@ Lib.Tile {
+             preferredSource.muted = !preferredSource.muted;
+     }
+ 
+-    tooltipText: muted ? qsTr("Microphone — Muted") : qsTr("Microphone — Active")
++    tooltipText: muted ? i18n("Microphone — Muted") : i18n("Microphone — Active")
+ }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
+index 6207b8b..5ecaff7 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
+@@ -10,12 +10,12 @@ import "../lib" as Lib
+ Lib.DetailPage {
+     id: page
+ 
+-    title: qsTr("Wi-Fi")
++    title: i18n("Wi-Fi")
+     switchChecked: page.wifiOn
+-    emptyText: page.wifiOn ? qsTr("No available networks") : qsTr("Wi-Fi is off")
++    emptyText: page.wifiOn ? i18n("No available networks") : i18n("Wi-Fi is off")
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More Wi-Fi settings")
++        text: i18n("More Wi-Fi settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_networkmanagement")
+     }
+ 
+@@ -74,13 +74,13 @@ Lib.DetailPage {
+ 
+         function statusText() {
+             if (connectionState === PlasmaNM.Enums.Activated) {
+-                return SecurityType === PlasmaNM.Enums.NoneSecurity ? qsTr("Connected, open") : qsTr("Connected, secured");
++                return SecurityType === PlasmaNM.Enums.NoneSecurity ? i18n("Connected, open") : i18n("Connected, secured");
+             }
+             if (connectionState === PlasmaNM.Enums.Activating || phase === "connecting") {
+-                return qsTr("Verifying and connecting");
++                return i18n("Verifying and connecting");
+             }
+             if (phase === "password") {
+-                return qsTr("Enter the network security key");
++                return i18n("Enter the network security key");
+             }
+             return "";
+         }
+@@ -249,7 +249,7 @@ Lib.DetailPage {
+ 
+                                     PlasmaComponents3.Label {
+                                         anchors.centerIn: parent
+-                                        text: qsTr("Connect")
++                                        text: i18n("Connect")
+                                         color: Kirigami.Theme.textColor
+                                         font.pixelSize: 11
+                                     }
+@@ -272,7 +272,7 @@ Lib.DetailPage {
+                             visible: delegate.expanded && delegate.phase === "password"
+ 
+                             PlasmaComponents3.Label {
+-                                text: qsTr("Enter the network security key")
++                                text: i18n("Enter the network security key")
+                                 color: Kirigami.Theme.textColor
+                                 opacity: 0.7
+                                 font.pixelSize: 10
+@@ -285,7 +285,7 @@ Lib.DetailPage {
+                                 text: delegate.password
+                                 onTextEdited: delegate.password = text
+                                 font.pixelSize: 11
+-                                placeholderText: qsTr("Password")
++                                placeholderText: i18n("Password")
+                                 validator: RegularExpressionValidator {
+                                     regularExpression: SecurityType === PlasmaNM.Enums.StaticWep
+                                         ? /^(?:.{5}|[0-9a-fA-F]{10}|.{13}|[0-9a-fA-F]{26}){1}$/
+@@ -340,7 +340,7 @@ Lib.DetailPage {
+ 
+                                         PlasmaComponents3.Label {
+                                             anchors.centerIn: parent
+-                                            text: qsTr("Cancel")
++                                            text: i18n("Cancel")
+                                             color: Kirigami.Theme.textColor
+                                             font.pixelSize: 11
+                                         }
+@@ -370,7 +370,7 @@ Lib.DetailPage {
+ 
+                                         PlasmaComponents3.Label {
+                                             anchors.centerIn: parent
+-                                            text: qsTr("Next")
++                                            text: i18n("Next")
+                                             color: "#FFFFFF"
+                                             font.pixelSize: 11
+                                         }
+@@ -394,7 +394,7 @@ Lib.DetailPage {
+                             visible: delegate.expanded && delegate.phase === "connecting"
+ 
+                             PlasmaComponents3.Label {
+-                                text: qsTr("Verifying and connecting")
++                                text: i18n("Verifying and connecting")
+                                 color: Kirigami.Theme.textColor
+                                 opacity: 0.7
+                                 font.pixelSize: 10
+@@ -429,7 +429,7 @@ Lib.DetailPage {
+ 
+                                     PlasmaComponents3.Label {
+                                         anchors.centerIn: parent
+-                                        text: qsTr("Disconnect")
++                                        text: i18n("Disconnect")
+                                         color: Kirigami.Theme.textColor
+                                         font.pixelSize: 11
+                                     }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml
+index d7e00c5..5bbd079 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml
+@@ -25,7 +25,7 @@ Lib.SplitTile {
+     readonly property bool wifiAvailable: availableDevices.wirelessDeviceAvailable
+     readonly property bool wifiOn: wifiAvailable && enabledConnections.wirelessEnabled
+ 
+-    label: qsTr("Wi-Fi")
++    label: i18n("Wi-Fi")
+     iconSource: {
+         var base = activeConnectionIcon.connectionIcon;
+         if (!wifiOn)
+@@ -44,7 +44,7 @@ Lib.SplitTile {
+         }
+     }
+ 
+-    tooltipText: wifiOn ? qsTr("Wi-Fi — On") : qsTr("Wi-Fi — Off")
++    tooltipText: wifiOn ? i18n("Wi-Fi — On") : i18n("Wi-Fi — Off")
+ 
+     onRightClicked: networkMenu.popup()
+ 
+@@ -54,22 +54,22 @@ Lib.SplitTile {
+         id: networkMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Open Wi-Fi settings")
++            text: i18n("Open Wi-Fi settings")
+             icon.name: "configure"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_networkmanagement")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Create hotspot…")
++            text: i18n("Create hotspot…")
+             icon.name: "network-wireless-hotspot"
+             onClicked: handler.createHotspot()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Connect to hidden network…")
++            text: i18n("Connect to hidden network…")
+             icon.name: "network-wireless-secure"
+             onClicked: handler.addAndActivateConnection("")
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Known networks…")
++            text: i18n("Known networks…")
+             icon.name: "preferences-system-network"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_networkmanagement")
+         }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NightLightToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NightLightToggle.qml
+index 99fdbd0..4296717 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NightLightToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NightLightToggle.qml
+@@ -6,7 +6,7 @@ import "../lib" as Lib
+ Lib.Tile {
+     id: tile
+ 
+-    label: qsTr("Night Light")
++    label: i18n("Night Light")
+     iconSource: {
+         if (!nightLight.available)
+             return "redshift-status-off-symbolic";
+@@ -20,10 +20,10 @@ Lib.Tile {
+ 
+     tooltipText: {
+         if (!nightLight.available)
+-            return qsTr("Night Light — Unavailable");
++            return i18n("Night Light — Unavailable");
+         if (active)
+-            return qsTr("Night Light — On");
+-        return qsTr("Night Light — Off");
++            return i18n("Night Light — On");
++        return i18n("Night Light — Off");
+     }
+ 
+     DBus.Properties {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NotificationsPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NotificationsPage.qml
+index 40f9432..c7ba724 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NotificationsPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NotificationsPage.qml
+@@ -15,11 +15,11 @@ import "../js/funcs.js" as Funcs
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Notifications")
++    title: i18n("Notifications")
+     contentFillsHeight: false
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More notification settings")
++        text: i18n("More notification settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_notifications")
+     }
+ 
+@@ -77,7 +77,7 @@ Lib.Page {
+ 
+                             PlasmaComponents3.Label {
+                                 Layout.fillWidth: true
+-                                text: model.Summary || model.ApplicationName || qsTr("Notification")
++                                text: model.Summary || model.ApplicationName || i18n("Notification")
+                                 color: Kirigami.Theme.textColor
+                                 font.pixelSize: 11
+                                 font.bold: true
+@@ -101,10 +101,10 @@ Lib.Page {
+                                     var ts = model.Created
+                                     if (!ts) return ""
+                                     var diff = (Date.now() - ts.getTime()) / 1000
+-                                    if (diff < 60) return qsTr("Just now")
+-                                    if (diff < 3600) return qsTr("%1m ago").arg(Math.floor(diff / 60))
+-                                    if (diff < 86400) return qsTr("%1h ago").arg(Math.floor(diff / 3600))
+-                                    return qsTr("%1d ago").arg(Math.floor(diff / 86400))
++                                    if (diff < 60) return i18n("Just now")
++                                    if (diff < 3600) return i18n("%1m ago", Math.floor(diff / 60))
++                                    if (diff < 86400) return i18n("%1h ago", Math.floor(diff / 3600))
++                                    return i18n("%1d ago", Math.floor(diff / 86400))
+                                 }
+                                 color: Kirigami.Theme.textColor
+                                 opacity: 0.4
+@@ -120,7 +120,7 @@ Lib.Page {
+         PlasmaComponents3.Label {
+             Layout.fillWidth: true
+             Layout.topMargin: 10
+-            text: qsTr("No notifications")
++            text: i18n("No notifications")
+             color: Kirigami.Theme.textColor
+             opacity: 0.5
+             font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/PowerProfilePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/PowerProfilePage.qml
+index f8becd6..143d559 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/PowerProfilePage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/PowerProfilePage.qml
+@@ -7,7 +7,7 @@ import "../lib" as Lib
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Power Mode")
++    title: i18n("Power Mode")
+     contentFillsHeight: false
+ 
+     PowerProfilesControl {
+@@ -15,7 +15,7 @@ Lib.Page {
+     }
+ 
+     footer: Lib.MoreSettingsLink {
+-        text: qsTr("More power settings")
++        text: i18n("More power settings")
+         onClicked: KCMLauncher.openSystemSettings("kcm_powerdevilprofilesconfig")
+     }
+ 
+@@ -24,7 +24,7 @@ Lib.Page {
+         spacing: 0
+ 
+         Lib.SectionHeader {
+-            text: qsTr("Power Profiles")
++            text: i18n("Power Profiles")
+         }
+ 
+         Repeater {
+@@ -35,11 +35,11 @@ Lib.Page {
+                 text: {
+                     switch (modelData) {
+                     case "performance":
+-                        return qsTr("Performance");
++                        return i18n("Performance");
+                     case "balanced":
+-                        return qsTr("Balanced");
++                        return i18n("Balanced");
+                     case "power-saver":
+-                        return qsTr("Power Saver");
++                        return i18n("Power Saver");
+                     default:
+                         return modelData;
+                     }
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
+index 371cf2f..64e1f40 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
+@@ -7,7 +7,7 @@ Lib.Tile {
+ 
+     property bool touchpadEnabled: true
+ 
+-    label: touchpadEnabled ? qsTr("Touchpad On") : qsTr("Touchpad Off")
++    label: touchpadEnabled ? i18n("Touchpad On") : i18n("Touchpad Off")
+     iconSource: "input-touchpad"
+     active: !touchpadEnabled
+ 
+@@ -31,5 +31,5 @@ Lib.Tile {
+         touchpadEnabled = !touchpadEnabled;
+     }
+ 
+-    tooltipText: touchpadEnabled ? qsTr("Touchpad — Enabled") : qsTr("Touchpad — Disabled")
++    tooltipText: touchpadEnabled ? i18n("Touchpad — Enabled") : i18n("Touchpad — Disabled")
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
-index 720a05b..ba5e77d 100644
+index 720a05b..f201a09 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
-@@ -13,7 +13,7 @@ Lib.Page {
+@@ -9,11 +9,11 @@ import "volume" as Volume
+ Lib.Page {
+     id: page
+ 
+-    title: qsTr("Volume")
++    title: i18n("Volume")
      contentFillsHeight: false
  
      footer: Lib.MoreSettingsLink {
 -        text: qsTr("More volume settings")
-+        text: qsTr("Mais configurações de volume")
++        text: i18n("Mais configurações de volume")
          onClicked: KCMLauncher.openSystemSettings("kcm_pulseaudio")
      }
  
@@ -3199,12 +4128,40 @@ index 720a05b..ba5e77d 100644
          Layout.fillWidth: true
          Layout.topMargin: 10
 -        text: qsTr("No applications playing audio")
-+        text: qsTr("Nenhum aplicativo reproduzindo áudio")
++        text: i18n("Nenhum aplicativo reproduzindo áudio")
          color: Kirigami.Theme.textColor
          opacity: 0.5
          font.pixelSize: 11
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumeSlider.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumeSlider.qml
+index 371d709..b3f3905 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumeSlider.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumeSlider.qml
+@@ -53,7 +53,7 @@ Lib.Slider {
+         id: volumeMenu
+ 
+         PlasmaComponents3.MenuItem {
+-            text: sinkAvailable && sink.muted ? qsTr("Unmute") : qsTr("Mute")
++            text: sinkAvailable && sink.muted ? i18n("Unmute") : i18n("Mute")
+             icon.name: sinkAvailable && sink.muted ? "audio-volume-muted" : "audio-volume-high"
+             onClicked: {
+                 if (sinkAvailable)
+@@ -61,12 +61,12 @@ Lib.Slider {
+             }
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Test sound")
++            text: i18n("Test sound")
+             icon.name: "audio-volume-high"
+             onClicked: Vol.VolumeFeedback.play()
+         }
+         PlasmaComponents3.MenuItem {
+-            text: qsTr("Audio settings")
++            text: i18n("Audio settings")
+             icon.name: "configure"
+             onClicked: Qt.openUrlExternally("systemsettings://kcm_pulseaudio")
+         }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
-index b2d2e4e..e4f803d 100644
+index b2d2e4e..7f5b208 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/InputDeviceSection.qml
 @@ -16,14 +16,14 @@ ColumnLayout {
@@ -3212,7 +4169,7 @@ index b2d2e4e..e4f803d 100644
  
      Lib.SectionHeader {
 -        text: qsTr("Input Device")
-+        text: qsTr("Dispositivo de entrada")
++        text: i18n("Dispositivo de entrada")
      }
  
      Lib.ListRow {
@@ -3220,7 +4177,7 @@ index b2d2e4e..e4f803d 100644
          selected: true
          iconSource: Funcs.volIconName(models.sourceAvailable ? models.source.volume : 0, models.sourceAvailable ? models.source.muted : true)
 -        text: models.sourceAvailable ? models.source.description : qsTr("No input device")
-+        text: models.sourceAvailable ? models.source.description : qsTr("Nenhum dispositivo de entrada")
++        text: models.sourceAvailable ? models.source.description : i18n("Nenhum dispositivo de entrada")
          trailing: section.hasMultiple ? arrowComponent : null
          onClicked: if (section.hasMultiple)
              section.expanded = !section.expanded
@@ -3229,12 +4186,12 @@ index b2d2e4e..e4f803d 100644
                      selected: model.PulseObject && model.PulseObject.default
                      iconSource: Funcs.volIconName(model.Volume, model.Muted)
 -                    text: model.Description || model.Name || qsTr("Unknown device")
-+                    text: model.Description || model.Name || qsTr("Dispositivo desconhecido")
++                    text: model.Description || model.Name || i18n("Dispositivo desconhecido")
                      onClicked: {
                          models.setDefaultSource(model.PulseObject);
                          models.playFeedback(model.PulseObject.index);
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
-index f0c1a3e..b88762a 100644
+index f0c1a3e..da688b6 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/OutputDeviceSection.qml
 @@ -15,7 +15,7 @@ ColumnLayout {
@@ -3242,7 +4199,7 @@ index f0c1a3e..b88762a 100644
  
      Lib.SectionHeader {
 -        text: qsTr("Output Device")
-+        text: qsTr("Dispositivo de saída")
++        text: i18n("Dispositivo de saída")
      }
  
      Lib.ListRow {
@@ -3251,7 +4208,7 @@ index f0c1a3e..b88762a 100644
              models.sinkAvailable ? models.sink.muted : true
          )
 -        text: models.sinkAvailable ? models.sink.description : qsTr("No output device")
-+        text: models.sinkAvailable ? models.sink.description : qsTr("Nenhum dispositivo de saída")
++        text: models.sinkAvailable ? models.sink.description : i18n("Nenhum dispositivo de saída")
          trailing: section.hasMultiple ? arrowComponent : null
          onClicked: if (section.hasMultiple) section.expanded = !section.expanded
      }
@@ -3260,12 +4217,12 @@ index f0c1a3e..b88762a 100644
                      selected: model.PulseObject && model.PulseObject.default
                      iconSource: Funcs.volIconName(model.Volume, model.Muted)
 -                    text: model.Description || model.Name || qsTr("Unknown device")
-+                    text: model.Description || model.Name || qsTr("Dispositivo desconhecido")
++                    text: model.Description || model.Name || i18n("Dispositivo desconhecido")
                      onClicked: {
                          models.setDefaultSink(model.PulseObject)
                          models.playFeedback(model.PulseObject.index)
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
-index 0154d7d..ec3b534 100644
+index 0154d7d..a9c2f7f 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/volume/VolumeMixerSection.qml
 @@ -9,12 +9,73 @@ ColumnLayout {
@@ -3283,7 +4240,7 @@ index 0154d7d..ec3b534 100644
  
      Lib.SectionHeader {
 -        text: qsTr("Volume Mixer")
-+        text: qsTr("Mixer de volume")
++        text: i18n("Mixer de volume")
 +    }
 +
 +    // "Sons do sistema", como no mixer do Windows 11: sempre visível
@@ -3349,7 +4306,7 @@ index 0154d7d..ec3b534 100644
                      PlasmaComponents3.Label {
                          Layout.fillWidth: true
 -                        text: (model.Client && model.Client.name) || model.Name || qsTr("Unknown application")
-+                        text: (model.Client && model.Client.name) || model.Name || qsTr("Aplicativo desconhecido")
++                        text: (model.Client && model.Client.name) || model.Name || i18n("Aplicativo desconhecido")
                          color: Kirigami.Theme.textColor
                          font.pixelSize: 11
                          elide: Text.ElideRight
@@ -3389,6 +4346,56 @@ index 71df315..6b8a172 100644
 +
      readonly property var source: Vol.PreferredDevice.source
      readonly property bool sourceAvailable: source && !(source.name === "auto_null")
+ 
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ListRow.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ListRow.qml
+index bfb6a1b..f70734a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ListRow.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ListRow.qml
+@@ -21,14 +21,23 @@ Item {
+         anchors.leftMargin: 8
+         anchors.rightMargin: 8
+         radius: 4
+-        color: row.selected
+-            ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g, Kirigami.Theme.highlightColor.b, 0.15)
+-            : (rowMouse.containsMouse
+-                ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+-                : "transparent")
++        // Windows 11: selecionado = fundo neutro discreto + tracinho azul à esquerda
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                       rowMouse.containsPress ? 0.04 : (rowMouse.containsMouse ? 0.08 : (row.selected ? 0.06 : 0)))
+ 
+         Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
+ 
++        Rectangle {
++            visible: row.selected
++            anchors.left: parent.left
++            anchors.verticalCenter: parent.verticalCenter
++            width: 3
++            height: rowMouse.containsPress ? 10 : 16
++            radius: width / 2
++            color: Kirigami.Theme.highlightColor
++            Behavior on height { NumberAnimation { duration: 100 } }
++        }
++
+         RowLayout {
+             anchors.fill: parent
+             anchors.leftMargin: 10
+@@ -39,7 +48,7 @@ Item {
+                 Layout.preferredWidth: 20
+                 Layout.preferredHeight: 20
+                 source: row.iconSource
+-                color: row.selected ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
++                color: Kirigami.Theme.textColor
+                 isMask: true
+                 visible: row.iconSource.length > 0
+             }
+@@ -49,7 +58,6 @@ Item {
+                 text: row.text
+                 color: Kirigami.Theme.textColor
+                 font.pixelSize: 11
+-                font.bold: row.selected
+                 elide: Text.ElideRight
+             }
  
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml
 index fc6d900..1b4d84e 100644

@@ -1,0 +1,382 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgid "%1 — %2h %3m remaining"
+msgstr "%1 — %2h %3min restantes"
+
+msgid "%1d ago"
+msgstr "há %1 d"
+
+msgid "%1h ago"
+msgstr "há %1 h"
+
+msgid "%1m ago"
+msgstr "há %1 min"
+
+msgid "(empty)"
+msgstr "(vazio)"
+
+msgid "Add new device"
+msgstr "Adicionar dispositivo"
+
+msgid "Add new device…"
+msgstr "Adicionar dispositivo…"
+
+msgid "Airplane"
+msgstr "Modo avião"
+
+msgid "Airplane Mode — Off"
+msgstr "Modo avião — Desligado"
+
+msgid "Airplane Mode — On"
+msgstr "Modo avião — Ligado"
+
+msgid "Audio settings"
+msgstr "Configurações de som"
+
+msgid "Balanced"
+msgstr "Equilibrado"
+
+msgid "Battery"
+msgstr "Bateria"
+
+msgid "Battery Saver"
+msgstr "Economia de bateria"
+
+msgid "Battery health"
+msgstr "Integridade da bateria"
+
+msgid "Block sleep & screen lock"
+msgstr "Impedir suspensão e bloqueio de tela"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Bluetooth is off"
+msgstr "O Bluetooth está desligado"
+
+msgid "Bluetooth settings"
+msgstr "Configurações de Bluetooth"
+
+msgid "Bluetooth — %1 connected"
+msgstr "Bluetooth — %1 conectado(s)"
+
+msgid "Bluetooth — Off"
+msgstr "Bluetooth — Desligado"
+
+msgid "Bluetooth — On, not connected"
+msgstr "Bluetooth — Ligado, sem conexão"
+
+msgid "Brightness"
+msgstr "Brilho"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Charging"
+msgstr "Carregando"
+
+msgid "Charging — %1"
+msgstr "Carregando — %1"
+
+msgid "Clipboard"
+msgstr "Área de transferência"
+
+msgid "Clipboard is empty"
+msgstr "A área de transferência está vazia"
+
+msgid "Connect"
+msgstr "Conectar"
+
+msgid "Connect to hidden network…"
+msgstr "Conectar a uma rede oculta…"
+
+msgid "Connected"
+msgstr "Conectado"
+
+msgid "Connected, open"
+msgstr "Conectado, aberta"
+
+msgid "Connected, secured"
+msgstr "Conectado, protegida"
+
+msgid "Create hotspot…"
+msgstr "Criar hotspot…"
+
+msgid "Dark Mode"
+msgstr "Modo escuro"
+
+msgid "Devices"
+msgstr "Dispositivos"
+
+msgid "Discharging"
+msgstr "Descarregando"
+
+msgid "Disconnect"
+msgstr "Desconectar"
+
+msgid "Disconnected"
+msgstr "Desconectado"
+
+msgid "Display %1"
+msgstr "Tela %1"
+
+msgid "Display settings"
+msgstr "Configurações de tela"
+
+msgid "Do Not Disturb"
+msgstr "Não incomodar"
+
+msgid "Do Not Disturb — Off"
+msgstr "Não incomodar — Desligado"
+
+msgid "Do Not Disturb — On"
+msgstr "Não incomodar — Ligado"
+
+msgid "Enter the network security key"
+msgstr "Insira a chave de segurança da rede"
+
+msgid "Fully charged"
+msgstr "Totalmente carregada"
+
+msgid "Hibernate"
+msgstr "Hibernar"
+
+msgid "Hotspot"
+msgstr "Hotspot móvel"
+
+msgid "Hotspot — Off"
+msgstr "Hotspot móvel — Desligado"
+
+msgid "Hotspot — On"
+msgstr "Hotspot móvel — Ligado"
+
+msgid "Invert Colors"
+msgstr "Inverter cores"
+
+msgid "Invert Colors — Toggle"
+msgstr "Inverter cores"
+
+msgid "Just now"
+msgstr "Agora"
+
+msgid "Known networks…"
+msgstr "Redes conhecidas…"
+
+msgid "Light Mode"
+msgstr "Modo claro"
+
+msgid "Lock"
+msgstr "Bloquear"
+
+msgid "Log out"
+msgstr "Sair"
+
+msgid "Media"
+msgstr "Mídia"
+
+msgid "Mic Muted"
+msgstr "Microfone mudo"
+
+msgid "Mic On"
+msgstr "Microfone"
+
+msgid "Microphone — Active"
+msgstr "Microfone — Ativo"
+
+msgid "Microphone — Muted"
+msgstr "Microfone — Mudo"
+
+msgid "More Bluetooth settings"
+msgstr "Mais configurações de Bluetooth"
+
+msgid "More Wi-Fi settings"
+msgstr "Mais configurações de Wi-Fi"
+
+msgid "More clipboard settings"
+msgstr "Mais configurações da área de transferência"
+
+msgid "More device settings"
+msgstr "Mais configurações de dispositivos"
+
+msgid "More media settings"
+msgstr "Mais configurações de mídia"
+
+msgid "More notification settings"
+msgstr "Mais configurações de notificação"
+
+msgid "More power settings"
+msgstr "Mais configurações de energia"
+
+msgid "Mounted"
+msgstr "Montado"
+
+msgid "Mute"
+msgstr "Silenciar"
+
+msgid "Network settings"
+msgstr "Configurações de rede"
+
+msgid "Next"
+msgstr "Avançar"
+
+msgid "Night Light"
+msgstr "Luz noturna"
+
+msgid "Night Light — Off"
+msgstr "Luz noturna — Desligada"
+
+msgid "Night Light — On"
+msgstr "Luz noturna — Ligada"
+
+msgid "Night Light — Unavailable"
+msgstr "Luz noturna — Indisponível"
+
+msgid "Night color settings"
+msgstr "Configurações da luz noturna"
+
+msgid "No Sleep"
+msgstr "Sem suspensão"
+
+msgid "No available networks"
+msgstr "Nenhuma rede disponível"
+
+msgid "No devices connected"
+msgstr "Nenhum dispositivo conectado"
+
+msgid "No devices paired"
+msgstr "Nenhum dispositivo emparelhado"
+
+msgid "No media playing"
+msgstr "Nada tocando"
+
+msgid "No notifications"
+msgstr "Nenhuma notificação"
+
+msgid "Not mounted"
+msgstr "Não montado"
+
+msgid "Notification"
+msgstr "Notificação"
+
+msgid "Notification settings"
+msgstr "Configurações de notificação"
+
+msgid "Notifications"
+msgstr "Notificações"
+
+msgid "Open System Settings"
+msgstr "Abrir Configurações"
+
+msgid "Open Wi-Fi settings"
+msgstr "Abrir configurações de Wi-Fi"
+
+msgid "Password"
+msgstr "Senha"
+
+msgid "Performance"
+msgstr "Melhor desempenho"
+
+msgid "Power Mode"
+msgstr "Modo de energia"
+
+msgid "Power Mode — Balanced"
+msgstr "Modo de energia — Equilibrado"
+
+msgid "Power Mode — Performance"
+msgstr "Modo de energia — Melhor desempenho"
+
+msgid "Power Mode — Power Saver"
+msgstr "Modo de energia — Economia de energia"
+
+msgid "Power Profiles"
+msgstr "Modos de energia"
+
+msgid "Power Saver"
+msgstr "Economia de energia"
+
+msgid "Power off / Log out"
+msgstr "Desligar / Sair"
+
+msgid "Power settings"
+msgstr "Configurações de energia"
+
+msgid "Removable device"
+msgstr "Dispositivo removível"
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Send file…"
+msgstr "Enviar arquivo…"
+
+msgid "Show battery info"
+msgstr "Mostrar informações da bateria"
+
+msgid "Shut down"
+msgstr "Desligar"
+
+msgid "Sleep Allowed"
+msgstr "Suspensão permitida"
+
+msgid "Sleep Blocked"
+msgstr "Suspensão bloqueada"
+
+msgid "Sleep Inhibited"
+msgstr "Suspensão impedida"
+
+msgid "Sound settings"
+msgstr "Configurações de som"
+
+msgid "Suspend"
+msgstr "Suspender"
+
+msgid "Switch to dark mode"
+msgstr "Mudar para o modo escuro"
+
+msgid "Switch to light mode"
+msgstr "Mudar para o modo claro"
+
+msgid "Test sound"
+msgstr "Testar som"
+
+msgid "Touchpad Off"
+msgstr "Touchpad desligado"
+
+msgid "Touchpad On"
+msgstr "Touchpad"
+
+msgid "Touchpad — Disabled"
+msgstr "Touchpad — Desativado"
+
+msgid "Touchpad — Enabled"
+msgstr "Touchpad — Ativado"
+
+msgid "Unknown artist"
+msgstr "Artista desconhecido"
+
+msgid "Unknown track"
+msgstr "Faixa desconhecida"
+
+msgid "Unmute"
+msgstr "Ativar som"
+
+msgid "Verifying and connecting"
+msgstr "Verificando e conectando"
+
+msgid "Volume"
+msgstr "Volume"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "Wi-Fi is off"
+msgstr "O Wi-Fi está desligado"
+
+msgid "Wi-Fi — Off"
+msgstr "Wi-Fi — Desligado"
+
+msgid "Wi-Fi — On"
+msgstr "Wi-Fi — Ligado"

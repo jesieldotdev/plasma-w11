@@ -96,6 +96,11 @@ for po in "$HERE"/locale/*/startmenu.po; do
     mkdir -p "$LOCALE_DIR/$lang/LC_MESSAGES"
     msgfmt -o "$LOCALE_DIR/$lang/LC_MESSAGES/plasma_applet_org.kde.windowsmodern.startmenu.mo" "$po"
 done
+for po in "$HERE"/locale/*/systemtray.po; do
+    lang=$(basename "$(dirname "$po")")
+    mkdir -p "$LOCALE_DIR/$lang/LC_MESSAGES"
+    msgfmt -o "$LOCALE_DIR/$lang/LC_MESSAGES/plasma_applet_org.kde.windowsmodern.systemtray.mo" "$po"
+done
 # o relógio do tema é um fork do relógio do Plasma: usa o catálogo oficial dele
 for mo in /usr/share/locale/*/LC_MESSAGES/plasma_applet_org.kde.plasma.digitalclock.mo; do
     lang=$(basename "$(dirname "$(dirname "$mo")")")
