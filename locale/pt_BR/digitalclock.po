@@ -1,0 +1,28 @@
+# Textos do relógio do plasma-w11 (central de notificações). Juntado com o
+# catálogo oficial do relógio do Plasma na instalação; estes têm prioridade.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Notifications"
+msgstr "Notificações"
+
+msgid "Clear all"
+msgstr "Limpar tudo"
+
+msgid "Do not disturb"
+msgstr "Não incomodar"
+
+msgid "No new notifications"
+msgstr "Nenhuma nova notificação"
+
+msgid "Just now"
+msgstr "Agora"
+
+msgid "%1 min"
+msgstr "%1 min"
+
+msgid "Close"
+msgstr "Fechar"

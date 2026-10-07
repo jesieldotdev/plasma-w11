@@ -77,6 +77,459 @@ index e8cb979..5709acb 100644
              verticalAlignment: Text.AlignVCenter
              textFormat: Text.PlainText
  
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
+index 9649ada..6ce0879 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
+@@ -18,16 +18,18 @@ Item {
+ 
+     Win11Palette { id: palette }
+ 
+-    // Size the popup based on configuration: width is capped at expandedWidth
+-    // and the height keeps a fixed 340:450 (width:height) aspect ratio.
++    // Largura da configuração; a altura acompanha as notificações + o calendário
+     implicitWidth: Plasmoid.configuration.expandedWidth
+     Layout.preferredWidth: Plasmoid.configuration.expandedWidth
+     Layout.maximumWidth: Plasmoid.configuration.expandedWidth
+-    implicitHeight: Math.round(Plasmoid.configuration.expandedWidth * 450 / 340)
++    implicitHeight: mainColumn.implicitHeight + Kirigami.Units.largeSpacing * 2
+     Layout.preferredHeight: implicitHeight
+     Layout.maximumHeight: implicitHeight
+     clip: true
+ 
++    // ao abrir, as notificações contam como lidas
++    onVisibleChanged: if (visible) notificationCenter.markRead()
++
+     // The popup fill, border and shadow are supplied by the Plasma theme's
+     // dialogs/background.svg; we only lay out the content here.
+     ColumnLayout {
+@@ -40,71 +42,30 @@ Item {
+         }
+         spacing: Kirigami.Units.largeSpacing
+ 
+-        // ── Header: large time (with superscript AM/PM) and full date ──
+-        ColumnLayout {
+-            id: headerColumn
++        // ── Central de notificações (Windows 11: em cima do calendário) ──
++        NotificationCenter {
++            id: notificationCenter
+             Layout.fillWidth: true
+-            spacing: Kirigami.Units.smallSpacing / 2
+-
+-            RowLayout {
+-                id: timeRow
+-                Layout.alignment: Qt.AlignHCenter
+-                spacing: Kirigami.Units.smallSpacing / 2
+-
+-                PlasmaComponents.Label {
+-                    id: timeHeader
+-                    horizontalAlignment: Text.AlignHCenter
+-                    verticalAlignment: Text.AlignVCenter
+-                    textFormat: Text.PlainText
+-                    text: {
+-                        const fmt = root.timeFormatWithSeconds;
+-                        // Render the AM/PM suffix separately so it can be smaller.
+-                        if (fmt.toLowerCase().includes("ap")) {
+-                            return Qt.locale().toString(root.currentTime, fmt.replace(/\s+AP/i, ""));
+-                        }
+-                        return Qt.locale().toString(root.currentTime, fmt);
+-                    }
+-                    color: palette.text
+-                    font {
+-                        family: Kirigami.Theme.defaultFont.family
+-                        weight: Font.Bold
+-                        pixelSize: Kirigami.Units.gridUnit * 3
+-                        features: { "tnum": 1 }
+-                    }
+-                }
++        }
+ 
+-                PlasmaComponents.Label {
+-                    id: amPmLabel
+-                    visible: root.timeFormatWithSeconds.toLowerCase().includes("ap")
+-                    horizontalAlignment: Text.AlignLeft
+-                    verticalAlignment: Text.AlignTop
+-                    textFormat: Text.PlainText
+-                    text: Qt.locale().toString(root.currentTime, "AP")
+-                    color: palette.text
+-                    font {
+-                        family: Kirigami.Theme.defaultFont.family
+-                        weight: Font.Bold
+-                        pixelSize: Math.round(timeHeader.font.pixelSize * 0.45)
+-                    }
+-                    Layout.alignment: Qt.AlignTop
+-                    Layout.topMargin: timeHeader.font.pixelSize * 0.12
+-                }
+-            }
++        Rectangle {
++            Layout.fillWidth: true
++            Layout.leftMargin: -Kirigami.Units.largeSpacing
++            Layout.rightMargin: -Kirigami.Units.largeSpacing
++            implicitHeight: 1
++            color: palette.surfaceBorder
++        }
+ 
+-            PlasmaComponents.Label {
+-                id: dateHeader
+-                Layout.fillWidth: true
+-                horizontalAlignment: Text.AlignHCenter
+-                verticalAlignment: Text.AlignVCenter
+-                textFormat: Text.PlainText
+-                // Windows 11 omits the year from the date line.
+-                text: Qt.locale().toString(root.currentTime, "dddd, MMMM d")
+-                color: palette.textSecondary
+-                font {
+-                    family: Kirigami.Theme.defaultFont.family
+-                    pixelSize: Kirigami.Units.gridUnit * 1.1
+-                }
+-            }
++        // ── Data, como no cabeçalho do calendário do Windows 11 ──
++        PlasmaComponents.Label {
++            id: dateHeader
++            Layout.fillWidth: true
++            textFormat: Text.PlainText
++            // Windows 11 omits the year from the date line.
++            text: Qt.locale().toString(root.currentTime,
++                      Qt.locale().dateFormat(Locale.LongFormat).replace(/[,\s]*('[^']*'\s*)?y+/, ""))
++            color: palette.text
++            font.weight: Font.DemiBold
+         }
+ 
+         // ── Calendar grid ──
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
+new file mode 100644
+index 0000000..8067fbd
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
+@@ -0,0 +1,309 @@
++/*
++    Central de notificações do Windows 11, em cima do calendário do relógio:
++    "Notificações" com o sino do Não incomodar e "Limpar tudo"; as
++    notificações agrupadas por aplicativo, em cartões com hora, fechar e as
++    ações; vazio, "Nenhuma nova notificação".
++
++    Usa o mesmo motor da área de notificações do KDE (org.kde.notificationmanager):
++    histórico, agrupamento, ações e o Não incomodar valem para os dois.
++
++    SPDX-License-Identifier: GPL-2.0-or-later
++*/
++
++pragma ComponentBehavior: Bound
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.components as PlasmaComponents
++import org.kde.kirigami as Kirigami
++import org.kde.kquickcontrolsaddons as KQuickAddons
++import org.kde.notificationmanager as NotificationManager
++
++ColumnLayout {
++    id: center
++
++    property real maxListHeight: Kirigami.Units.gridUnit * 22
++    // o "count" do modelo não acompanha as linhas agrupadas: vale o da lista
++    readonly property int count: list.count
++    spacing: Kirigami.Units.smallSpacing
++
++    function tint(a) {
++        const t = Kirigami.Theme.textColor;
++        return Qt.rgba(t.r, t.g, t.b, a);
++    }
++
++    // ── Não incomodar (mesma regra do botão da bandeja) ──────────────────
++    NotificationManager.Settings { id: notifSettings }
++    readonly property bool doNotDisturb: {
++        let on = false;
++        const until = notifSettings.notificationsInhibitedUntil;
++        if (until && !isNaN(until.getTime())) on = Date.now() < until.getTime();
++        return on || notifSettings.notificationsInhibitedByApplication
++            || (notifSettings.inhibitNotificationsWhenScreensMirrored && notifSettings.screensMirrored);
++    }
++    function toggleDoNotDisturb() {
++        if (doNotDisturb) {
++            notifSettings.notificationsInhibitedUntil = undefined;
++            notifSettings.revokeApplicationInhibitions();
++            notifSettings.screensMirrored = false;
++        } else {
++            const d = new Date();
++            d.setFullYear(d.getFullYear() + 1);
++            notifSettings.notificationsInhibitedUntil = d;
++        }
++        notifSettings.save();
++    }
++
++    // ── o histórico, agrupado por aplicativo ────────────────────────────
++    NotificationManager.Notifications {
++        id: notifications
++        showExpired: true
++        showDismissed: true
++        showAddedDuringInhibition: true
++        showJobs: false
++        sortMode: NotificationManager.Notifications.SortByDate
++        sortOrder: Qt.DescendingOrder
++        groupMode: NotificationManager.Notifications.GroupApplicationsFlat
++        groupLimit: 3
++        expandUnread: true
++    }
++
++    function clearAll() {
++        notifications.clear(NotificationManager.Notifications.ClearExpired);
++        // as que ainda estão na tela também saem
++        for (let i = notifications.count - 1; i >= 0; --i) {
++            const idx = notifications.index(i, 0);
++            if (notifications.data(idx, NotificationManager.Notifications.ClosableRole)) {
++                notifications.close(idx);
++            }
++        }
++    }
++
++    // ao abrir, tudo conta como lido (o sininho do relógio se apaga)
++    function markRead() { notifications.lastRead = new Date(); }
++
++    function age(date) {
++        if (!date) return "";
++        const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
++        if (minutes < 1) return i18n("Just now");
++        if (minutes < 60) return i18n("%1 min", minutes);
++        const sameDay = new Date().toDateString() === date.toDateString();
++        return sameDay ? Qt.formatTime(date, Qt.locale().timeFormat(Locale.ShortFormat))
++                       : Qt.locale().toString(date, "d/M HH:mm");
++    }
++
++    // ── cabeçalho ────────────────────────────────────────────────────────
++    RowLayout {
++        Layout.fillWidth: true
++        spacing: Kirigami.Units.smallSpacing
++
++        PlasmaComponents.Label {
++            text: i18n("Notifications")
++            font.weight: Font.DemiBold
++            Layout.fillWidth: true
++        }
++        PlasmaComponents.ToolButton {
++            visible: center.count > 0
++            text: i18n("Clear all")
++            onClicked: center.clearAll()
++        }
++        PlasmaComponents.ToolButton {
++            icon.name: center.doNotDisturb ? "notifications-disabled" : "notifications"
++            checkable: true
++            checked: center.doNotDisturb
++            display: PlasmaComponents.AbstractButton.IconOnly
++            text: i18n("Do not disturb")
++            PlasmaComponents.ToolTip.text: text
++            PlasmaComponents.ToolTip.visible: hovered
++            onClicked: center.toggleDoNotDisturb()
++        }
++    }
++
++    // ── lista ────────────────────────────────────────────────────────────
++    ListView {
++        id: list
++        Layout.fillWidth: true
++        Layout.preferredHeight: Math.min(contentHeight, center.maxListHeight)
++        visible: count > 0
++        clip: true
++        spacing: Kirigami.Units.smallSpacing
++        boundsBehavior: Flickable.StopAtBounds
++        model: notifications
++        PlasmaComponents.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
++
++        add: Transition { NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 150 } }
++        remove: Transition { NumberAnimation { properties: "x"; to: list.width; duration: 180; easing.type: Easing.InCubic } }
++        displaced: Transition { NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic } }
++
++        delegate: Loader {
++            id: row
++            required property int index
++            required property var model
++            width: ListView.view.width
++            sourceComponent: model.isGroup ? groupHeader : card
++        }
++    }
++
++    PlasmaComponents.Label {
++        visible: center.count === 0
++        Layout.fillWidth: true
++        Layout.preferredHeight: Kirigami.Units.gridUnit * 5
++        horizontalAlignment: Text.AlignHCenter
++        verticalAlignment: Text.AlignVCenter
++        opacity: 0.7
++        text: i18n("No new notifications")
++    }
++
++    // ── nome do aplicativo do grupo ──────────────────────────────────────
++    Component {
++        id: groupHeader
++        Item {
++            id: header
++            readonly property var m: parent.model
++            readonly property int row: parent.index
++            implicitHeight: Kirigami.Units.gridUnit * 1.8
++            HoverHandler { id: headerHover }
++            RowLayout {
++                anchors.fill: parent
++                anchors.leftMargin: 4
++                spacing: Kirigami.Units.smallSpacing
++                Kirigami.Icon {
++                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
++                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
++                    source: header.m.applicationIconName || "preferences-desktop-notification"
++                }
++                PlasmaComponents.Label {
++                    Layout.fillWidth: true
++                    text: header.m.applicationName || ""
++                    elide: Text.ElideRight
++                    font.pointSize: Kirigami.Theme.smallFont.pointSize
++                }
++                PlasmaComponents.ToolButton {
++                    visible: headerHover.hovered
++                    icon.name: "window-close"
++                    display: PlasmaComponents.AbstractButton.IconOnly
++                    text: i18n("Close")
++                    onClicked: notifications.close(notifications.index(header.row, 0))
++                }
++            }
++        }
++    }
++
++    // ── cartão de uma notificação ────────────────────────────────────────
++    Component {
++        id: card
++        Rectangle {
++            id: cardItem
++            readonly property var m: parent.model
++            readonly property int row: parent.index
++            readonly property var actionNames: m.actionNames || []
++            readonly property var actionLabels: m.actionLabels || []
++
++            implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
++            radius: 8
++            color: cardMouse.containsMouse && m.hasDefaultAction ? center.tint(0.085) : center.tint(0.06)
++            border.width: 1
++            border.color: center.tint(0.08)
++            Behavior on color { ColorAnimation { duration: 120 } }
++
++            MouseArea {
++                id: cardMouse
++                anchors.fill: parent
++                hoverEnabled: true
++                cursorShape: cardItem.m.hasDefaultAction ? Qt.PointingHandCursor : Qt.ArrowCursor
++                onClicked: if (cardItem.m.hasDefaultAction) {
++                    notifications.invokeDefaultAction(notifications.index(cardItem.row, 0), NotificationManager.Notifications.Close);
++                }
++            }
++
++            ColumnLayout {
++                id: content
++                anchors.fill: parent
++                anchors.margins: Kirigami.Units.largeSpacing
++                spacing: Kirigami.Units.smallSpacing
++
++                RowLayout {
++                    Layout.fillWidth: true
++                    spacing: Kirigami.Units.largeSpacing
++
++                    // imagem da notificação (foto do contato, capa…) ou o ícone dela
++                    Item {
++                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
++                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
++                        Layout.alignment: Qt.AlignTop
++                        KQuickAddons.QImageItem {
++                            anchors.fill: parent
++                            visible: !!cardItem.m.image
++                            image: typeof cardItem.m.image === "undefined" ? undefined : cardItem.m.image
++                            fillMode: KQuickAddons.QImageItem.PreserveAspectFit
++                        }
++                        Kirigami.Icon {
++                            anchors.fill: parent
++                            visible: !cardItem.m.image
++                            source: cardItem.m.iconName || cardItem.m.applicationIconName || "preferences-desktop-notification"
++                        }
++                    }
++
++                    ColumnLayout {
++                        Layout.fillWidth: true
++                        spacing: 2
++                        RowLayout {
++                            Layout.fillWidth: true
++                            PlasmaComponents.Label {
++                                Layout.fillWidth: true
++                                text: cardItem.m.summary || cardItem.m.applicationName || ""
++                                font.weight: Font.DemiBold
++                                elide: Text.ElideRight
++                            }
++                            PlasmaComponents.Label {
++                                visible: !closeButton.visible
++                                text: center.age(cardItem.m.updated || cardItem.m.created)
++                                opacity: 0.6
++                                font.pointSize: Kirigami.Theme.smallFont.pointSize
++                            }
++                            PlasmaComponents.ToolButton {
++                                id: closeButton
++                                visible: cardMouse.containsMouse || hovered
++                                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium + 6
++                                Layout.preferredHeight: Layout.preferredWidth
++                                icon.name: "window-close"
++                                display: PlasmaComponents.AbstractButton.IconOnly
++                                text: i18n("Close")
++                                onClicked: notifications.close(notifications.index(cardItem.row, 0))
++                            }
++                        }
++                        PlasmaComponents.Label {
++                            Layout.fillWidth: true
++                            visible: text.length > 0
++                            text: cardItem.m.body || ""
++                            textFormat: Text.StyledText
++                            wrapMode: Text.Wrap
++                            maximumLineCount: 4
++                            elide: Text.ElideRight
++                            opacity: 0.85
++                            onLinkActivated: link => Qt.openUrlExternally(link)
++                        }
++                    }
++                }
++
++                // botões de ação ("Responder", "Abrir"…)
++                RowLayout {
++                    visible: cardItem.actionNames.length > 0
++                    Layout.fillWidth: true
++                    spacing: Kirigami.Units.smallSpacing
++                    Repeater {
++                        model: cardItem.actionNames.length
++                        PlasmaComponents.Button {
++                            required property int index
++                            Layout.fillWidth: true
++                            text: cardItem.actionLabels[index] || ""
++                            onClicked: notifications.invokeAction(notifications.index(cardItem.row, 0),
++                                                                  cardItem.actionNames[index], NotificationManager.Notifications.Close)
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml
+index 1f38bae..5273b41 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml
+@@ -21,8 +21,12 @@ QtObject {
+     readonly property color text:             isDark ? "#FFFFFF" : "#1E1E1E"
+     readonly property color textSecondary:    isDark ? "#9C9C9C" : "#5A5A5A"
+     readonly property color textDisabled:     isDark ? "#5A5A5A" : "#A0A0A0"
+-    readonly property color accent:           isDark ? "#4CC2FF" : "#0067C0"
+-    readonly property color accentText:       "#FFFFFF"
++    // a cor de destaque do sistema (inclusive a tirada do papel de parede)
++    readonly property color accent:           Kirigami.Theme.highlightColor
++    readonly property color accentText: {
++        const a = Kirigami.Theme.highlightColor;
++        return (a.r * 0.299 + a.g * 0.587 + a.b * 0.114) > 0.6 ? "#1E1E1E" : "#FFFFFF";
++    }
+     readonly property color hover:            isDark ? "#3F3F3F" : "#E9E9E9"
+     readonly property color pressed:          isDark ? "#4A4A4A" : "#DADADA"
+     readonly property color selected:         isDark ? "#2C2C2C" : "#F3F3F3"
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh b/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh
 new file mode 100755
 index 0000000..228c0f0

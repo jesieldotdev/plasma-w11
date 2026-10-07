@@ -130,11 +130,19 @@ for po in "$HERE"/locale/*/systemtray.po; do
     mkdir -p "$LOCALE_DIR/$lang/LC_MESSAGES"
     msgfmt -o "$LOCALE_DIR/$lang/LC_MESSAGES/plasma_applet_org.kde.windowsmodern.systemtray.mo" "$po"
 done
-# o relógio do tema é um fork do relógio do Plasma: usa o catálogo oficial dele
+# o relógio do tema é um fork do relógio do Plasma: usa o catálogo oficial dele,
+# mais os textos da central de notificações (locale/<lang>/digitalclock.po, com prioridade)
 for mo in /usr/share/locale/*/LC_MESSAGES/plasma_applet_org.kde.plasma.digitalclock.mo; do
     lang=$(basename "$(dirname "$(dirname "$mo")")")
+    out="$LOCALE_DIR/$lang/LC_MESSAGES/plasma_applet_org.kde.windowsmodern.digitalclock.mo"
     mkdir -p "$LOCALE_DIR/$lang/LC_MESSAGES"
-    cp "$mo" "$LOCALE_DIR/$lang/LC_MESSAGES/plasma_applet_org.kde.windowsmodern.digitalclock.mo"
+    if [ -f "$HERE/locale/$lang/digitalclock.po" ]; then
+        msgunfmt "$mo" > "$STATE/clock-$lang.po"
+        msgcat --use-first "$HERE/locale/$lang/digitalclock.po" "$STATE/clock-$lang.po" | msgfmt -o "$out" -
+        rm -f "$STATE/clock-$lang.po"
+    else
+        cp "$mo" "$out"
+    fi
 done
 
 # ── 6. arquivos do Windows (fonte de ícones, cursores, sons, Segoe UI) ─
