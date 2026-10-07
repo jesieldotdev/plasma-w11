@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
+#include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
 #include <QStorageInfo>
@@ -100,23 +101,13 @@ QList<Place> places()
         }
         const bool removable = root.startsWith(QLatin1String("/run/media")) || root.startsWith(QLatin1String("/media"));
         const QString name = root == QLatin1String("/") ? QStringLiteral("%1 (/)").arg(label) : label;
-        QString id = QString::fromLatin1(s.device().toPercentEncoding());
+        // "sda1", "nvme1n1p5"...: sem "/" (no endereço viraria outro nível de pasta)
+        QString id = QString::fromLatin1(s.device()).section(QLatin1Char('/'), -1);
+        id.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9._-]")), QStringLiteral("_"));
         out.append({QStringLiteral("drive-") + id, name, root,
                     removable ? QStringLiteral("drive-removable-media-usb") : QStringLiteral("drive-harddisk"), true});
     }
     return out;
-}
-
-// "42,1 GB livres de 140 GB", como o Windows (que chama GiB de GB)
-QString freeText(const QString &path)
-{
-    const QStorageInfo s(path);
-    const QLocale pt(QLocale::Portuguese, QLocale::Brazil);
-    auto gb = [&](qint64 bytes) {
-        const double v = bytes / 1073741824.0;
-        return pt.toString(v, 'f', v < 100 ? 1 : 0) + QStringLiteral(" GB");
-    };
-    return QStringLiteral("%1 livres de %2").arg(gb(s.bytesAvailable()), gb(s.bytesTotal()));
 }
 
 KIO::UDSEntry entryFor(const Place &p)
@@ -124,8 +115,8 @@ KIO::UDSEntry entryFor(const Place &p)
     KIO::UDSEntry e;
     e.reserve(10);
     e.fastInsert(KIO::UDSEntry::UDS_NAME, p.id);
-    // unidades: espaço livre na segunda linha do nome (U+2028, que o Qt respeita)
-    e.fastInsert(KIO::UDSEntry::UDS_DISPLAY_NAME, p.drive ? p.name + QChar(QChar::LineSeparator) + freeText(p.path) : p.name);
+    // o espaço livre vai na miniatura (thispcthumbnail): no nome quebraria a árvore de pastas
+    e.fastInsert(KIO::UDSEntry::UDS_DISPLAY_NAME, p.name);
     e.fastInsert(KIO::UDSEntry::UDS_FILE_TYPE, S_IFDIR);
     e.fastInsert(KIO::UDSEntry::UDS_ACCESS, 0500);
     e.fastInsert(KIO::UDSEntry::UDS_ICON_NAME, p.icon);
@@ -152,7 +143,8 @@ KIO::UDSEntry rootEntry()
 
 QString itemId(const QUrl &url)
 {
-    return url.path().section(QLatin1Char('/'), 1, 1, QString::SectionSkipEmpty);
+    // com SectionSkipEmpty o primeiro pedaço não vazio é o 0 ("/drive-x" -> "drive-x")
+    return url.path().section(QLatin1Char('/'), 0, 0, QString::SectionSkipEmpty);
 }
 } // namespace
 
