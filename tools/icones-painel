@@ -83,10 +83,21 @@ def base_name(f):
     return re.sub(r'-(symbolic|panel)$', '', os.path.splitext(f)[0])
 
 
+def literal(rx):
+    """Nome do ícone quando a variação é um nome exato (ícones de apps, fora do tema)."""
+    name = re.sub(r'\\(.)', r'\1', rx)
+    return name if re.escape(name) == rx else None
+
+
 def names_for(rx):
     """Arquivos (do tema base) que uma variação cobre."""
     r = re.compile(rx)
-    return sorted(f for f in os.listdir(f'{BASE}/status') if f.endswith('.svg') and r.fullmatch(base_name(f)))
+    files = sorted(f for f in os.listdir(f'{BASE}/status') if f.endswith('.svg') and r.fullmatch(base_name(f)))
+    name = literal(rx)
+    if not files and name:
+        # ícone de app (KDE Connect, Discord...): a troca vale para o nome normal e o -symbolic
+        files = [f'{name}.svg', f'{name}-symbolic.svg']
+    return files
 
 
 def custom_files(rx):
@@ -103,7 +114,36 @@ def current_file(rx):
         p = f'{CUSTOM}/status/{files[0][:-4]}{ext}'
         if os.path.exists(p):
             return p
-    return f'{BASE}/status/{files[0]}'
+    if os.path.exists(f'{BASE}/status/{files[0]}'):
+        return f'{BASE}/status/{files[0]}'
+    name = literal(rx)
+    # a bandeja usa a versão -symbolic quando existe
+    return (resolve_icon(f'{name}-symbolic') or resolve_icon(name)) if name else None
+
+
+def is_app_icon(rx):
+    """Ícone que não existe no tema base (só no tema do próprio app)."""
+    if not literal(rx):
+        return False
+    r = re.compile(rx)
+    return not any(f.endswith('.svg') and r.fullmatch(base_name(f)) for f in os.listdir(f'{BASE}/status'))
+
+
+def add_app_icon(icon):
+    """Põe em "Outros" um ícone que não é do tema (vindo do "Alterar ícone…" da bandeja)."""
+    n = re.sub(r'-(symbolic|panel)$', '', icon)
+    if find_variant(n) is None:
+        GROUPS[-1][1].append((n, re.escape(n)))
+    return find_variant(n)
+
+
+def add_custom_app_icons():
+    """Ícones de apps já trocados antes continuam aparecendo em "Outros"."""
+    d = f'{CUSTOM}/status'
+    for f in sorted(os.listdir(d) if os.path.isdir(d) else []):
+        n = base_name(f)
+        if find_variant(n) is None and is_app_icon(re.escape(n)):
+            GROUPS[-1][1].append((n, re.escape(n)))
 
 
 def find_variant(icon):
@@ -408,7 +448,7 @@ class Window(QWidget):
         self.variants.clear()
         for label, rx in GROUPS[gi][1]:
             sc = get_scale(rx)
-            state = 'personalizado' if custom_files(rx) else 'Windows 11'
+            state = 'personalizado' if custom_files(rx) else ('original do app' if is_app_icon(rx) else 'Windows 11')
             if sc and abs(sc - 1) > 0.001:
                 state += f' · {round(sc * 100)}%'
             col = get_color(rx)
@@ -520,7 +560,8 @@ class Window(QWidget):
 def main():
     app = QApplication(sys.argv)
     app.setDesktopFileName('icones-painel')
-    start = find_variant(sys.argv[1]) if len(sys.argv) > 1 else None
+    add_custom_app_icons()
+    start = add_app_icon(sys.argv[1]) if len(sys.argv) > 1 else None
     w = Window(start)
     w.show()
     sys.exit(app.exec())
