@@ -6,6 +6,16 @@ Deixa o **KDE Plasma 6** com a cara do **Windows 11** — no modo escuro.
 
 ![Menu Iniciar com categorias](docs/menu-iniciar.png)
 
+<p>
+  <img src="docs/bandeja-configuracoes-rapidas.png" width="32%" alt="Configurações rápidas da bandeja na cor de destaque">
+  <img src="docs/bandeja-bluetooth.png" width="32%" alt="Bluetooth na bandeja">
+  <img src="docs/controles.png" width="34%" alt="Controles do Windows 11 nos apps do KDE">
+</p>
+
+![Barra de tarefas](docs/barra-de-tarefas.png)
+
+![Configurações › Personalização › Cores, com as cores do Windows](docs/cores.png)
+
 Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (temas,
 ícones, menu Iniciar, tela de bloqueio) numa versão fixa e acrescenta:
 
