@@ -2782,6 +2782,34 @@ index bd04add..ee46770 100644
      <entry name="reverseIconOrder" type="bool">
        <label>Whether to reverse the order of icons in the panel</label>
        <default>false</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
+index 5e67066..2f0c20b 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
+@@ -76,9 +76,11 @@ PlasmaCore.ToolTipArea {
+             } else if (Plasmoid.location === PlasmaCore.Types.RightEdge) {
+                 return "arrow-left-symbolic";
+             } else {
+-                return "arrow-up-symbolic";
++                // nome próprio (trocável em "Ícones do painel" sem mudar as setas do sistema)
++                return "w11-tray-expand-symbolic";
+             }
+         }
++        fallback: "arrow-up-symbolic"
+     }
+ 
+     Kirigami.Icon {
+@@ -105,8 +107,9 @@ PlasmaCore.ToolTipArea {
+             } else if (Plasmoid.location === PlasmaCore.Types.RightEdge) {
+                 return "arrow-right-symbolic";
+             } else {
+-                return "arrow-down-symbolic";
++                return "w11-tray-collapse-symbolic";
+             }
+         }
++        fallback: "arrow-down-symbolic"
+     }
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
 index 7504c55..d26edbf 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml

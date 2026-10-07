@@ -71,6 +71,8 @@ GROUPS = [
         ('Desligada', r'redshift-status-off|night-light-disabled'),
     ]),
     ('Outros', [
+        ('Seta da bandeja ^ (mostrar ícones)', re.escape('w11-tray-expand')),
+        ('Seta da bandeja (esconder ícones)', re.escape('w11-tray-collapse')),
         ('USB / dispositivos', r'media-removable|drive-removable-media(-usb)?|device-notifier'),
         ('Área de transferência', r'klipper'),
         ('Brilho', r'brightness-high|high-brightness|(display-)?brightness(-medium|-high)?|video-display-brightness'),
@@ -117,13 +119,20 @@ def current_file(rx):
     if os.path.exists(f'{BASE}/status/{files[0]}'):
         return f'{BASE}/status/{files[0]}'
     name = literal(rx)
+    if not name:
+        return None
+    name = FALLBACK.get(name, name)
     # a bandeja usa a versão -symbolic quando existe
-    return (resolve_icon(f'{name}-symbolic') or resolve_icon(name)) if name else None
+    return resolve_icon(f'{name}-symbolic') or resolve_icon(name)
+
+
+# ícones com nome próprio do tema que, sem troca, mostram outro ícone
+FALLBACK = {'w11-tray-expand': 'arrow-up', 'w11-tray-collapse': 'arrow-down'}
 
 
 def is_app_icon(rx):
     """Ícone que não existe no tema base (só no tema do próprio app)."""
-    if not literal(rx):
+    if not literal(rx) or literal(rx) in FALLBACK:
         return False
     r = re.compile(rx)
     return not any(f.endswith('.svg') and r.fullmatch(base_name(f)) for f in os.listdir(f'{BASE}/status'))
