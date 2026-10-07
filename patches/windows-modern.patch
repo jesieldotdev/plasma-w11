@@ -2768,14 +2768,15 @@ index e59c813..06b09f1 100644
                      var appActs = Tools.buildAppActions(i18n, favModel,
                                                          entry.favoriteId,
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
-index 401727e..815a620 100644
+index 401727e..59013d0 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
-@@ -162,6 +162,7 @@ ecm_target_qml_sources(org.kde.windowsmodern.systemtray
+@@ -162,6 +162,8 @@ ecm_target_qml_sources(org.kde.windowsmodern.systemtray
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Tile.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/SplitTile.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Slider.qml
 +        ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/ToggleSwitch.qml
++        ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/WinButton.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/SectionHeader.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/PageHeader.qml
          ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Page.qml
@@ -3012,7 +3013,7 @@ index 5e67066..3870ac2 100644
      }
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
-index 7504c55..d26edbf 100644
+index 7504c55..83aa472 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
 @@ -23,10 +23,19 @@ Item {
@@ -3021,7 +3022,7 @@ index 7504c55..d26edbf 100644
  
 +    // Páginas temáticas em uso. As outras ainda não foram revisadas e ficam
 +    // com o popup padrão do Plasma.
-+    readonly property var enabledPages: ["volume"]
++    readonly property var enabledPages: ["volume", "network"]
 +
 +    // A propriedade anexada `Plasmoid` não é acessível por uma referência a
 +    // outro item no Qt 6 (applet.Plasmoid é sempre undefined); o PlasmoidItem
@@ -3804,10 +3805,16 @@ index 2e986b3..b9426ef 100644
 +    tooltipText: muted ? i18n("Microphone — Muted") : i18n("Microphone — Active")
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
-index 6207b8b..5ecaff7 100644
+index 6207b8b..3b7506b 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
-@@ -10,12 +10,12 @@ import "../lib" as Lib
+@@ -5,17 +5,18 @@ import org.kde.plasma.networkmanagement as PlasmaNM
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.components as PlasmaComponents3
+ import org.kde.kcmutils
++import org.kde.kitemmodels as KItemModels
+ import "../lib" as Lib
+ 
  Lib.DetailPage {
      id: page
  
@@ -3823,86 +3830,567 @@ index 6207b8b..5ecaff7 100644
          onClicked: KCMLauncher.openSystemSettings("kcm_networkmanagement")
      }
  
-@@ -74,13 +74,13 @@ Lib.DetailPage {
+@@ -47,7 +48,41 @@ Lib.DetailPage {
+         onTriggered: handler.requestScan()
+     }
  
+-    listView.model: appletProxyModel
++    // Só redes Wi-Fi, como a página do Windows (a lista do Plasma mistura cabo e VPN)
++    KItemModels.KSortFilterProxyModel {
++        id: wifiModel
++        sourceModel: appletProxyModel
++        filterRowCallback: (row, parent) => {
++            const idx = sourceModel.index(row, 0, parent);
++            return sourceModel.data(idx, PlasmaNM.NetworkModel.TypeRole) === PlasmaNM.Enums.Wireless;
++        }
++    }
++
++    // barrinha animada enquanto procura redes (como no Windows 11)
++    listView.header: Item {
++        width: listView.width
++        height: 8
++        clip: true
++        Rectangle {
++            id: scanBar
++            y: 2
++            width: parent.width / 3
++            height: 2
++            radius: 1
++            color: Kirigami.Theme.highlightColor
++            visible: page.wifiOn && handler.scanning
++            NumberAnimation on x {
++                running: scanBar.visible && page.visible
++                loops: Animation.Infinite
++                from: -scanBar.width
++                to: scanBar.parent.width
++                duration: 1100
++                easing.type: Easing.InOutQuad
++            }
++        }
++    }
++
++    listView.model: wifiModel
+     listView.spacing: 2
+ 
+     listView.delegate: Item {
+@@ -60,6 +95,8 @@ Lib.DetailPage {
+              SecurityType === PlasmaNM.Enums.WpaPsk ||
+              SecurityType === PlasmaNM.Enums.Wpa2Psk ||
+              SecurityType === PlasmaNM.Enums.SAE)
++        readonly property bool secured: SecurityType !== PlasmaNM.Enums.NoneSecurity
++        readonly property bool connected: connectionState === PlasmaNM.Enums.Activated
+ 
+         property int connectionState: ConnectionState
+         property bool expanded: false
+@@ -67,21 +104,13 @@ Lib.DetailPage {
+         property string password: ""
+         property bool showPassword: false
+ 
+-        readonly property color subtleBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
+-        readonly property color hoverBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+-        readonly property color pressBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
+-        readonly property color btnBg: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.05)
+-
          function statusText() {
-             if (connectionState === PlasmaNM.Enums.Activated) {
+-            if (connectionState === PlasmaNM.Enums.Activated) {
 -                return SecurityType === PlasmaNM.Enums.NoneSecurity ? qsTr("Connected, open") : qsTr("Connected, secured");
-+                return SecurityType === PlasmaNM.Enums.NoneSecurity ? i18n("Connected, open") : i18n("Connected, secured");
-             }
-             if (connectionState === PlasmaNM.Enums.Activating || phase === "connecting") {
+-            }
+-            if (connectionState === PlasmaNM.Enums.Activating || phase === "connecting") {
 -                return qsTr("Verifying and connecting");
-+                return i18n("Verifying and connecting");
-             }
-             if (phase === "password") {
+-            }
+-            if (phase === "password") {
 -                return qsTr("Enter the network security key");
-+                return i18n("Enter the network security key");
-             }
+-            }
++            if (connected)
++                return secured ? i18n("Connected, secured") : i18n("Connected, open");
++            if (connectionState === PlasmaNM.Enums.Activating || phase === "connecting")
++                return i18n("Verifying and connecting");
++            if (expanded)
++                return secured ? i18n("Secured") : i18n("Open");
              return "";
          }
-@@ -249,7 +249,7 @@ Lib.DetailPage {
  
-                                     PlasmaComponents3.Label {
-                                         anchors.centerIn: parent
+@@ -90,6 +119,11 @@ Lib.DetailPage {
+                 expanded = false;
+                 phase = "idle";
+             } else {
++                // só uma rede aberta por vez, como no Windows
++                for (let i = 0; i < listView.count; ++i) {
++                    const other = listView.itemAtIndex(i);
++                    if (other && other !== delegate) { other.expanded = false; other.phase = "idle"; }
++                }
+                 expanded = true;
+                 phase = (connectionState === PlasmaNM.Enums.Activating) ? "connecting" : "idle";
+             }
+@@ -98,7 +132,8 @@ Lib.DetailPage {
+         function doConnect() {
+             if (predictableWirelessPassword) {
+                 phase = "password";
+-            } else if (!predictableWirelessPassword && !Uuid) {
++                Qt.callLater(() => pwField.forceActiveFocus());
++            } else if (!Uuid) {
+                 handler.addAndActivateConnection(DevicePath, SpecificPath);
+                 phase = "connecting";
+             } else {
+@@ -110,6 +145,7 @@ Lib.DetailPage {
+         function doNext() {
+             handler.addAndActivateConnection(DevicePath, SpecificPath, password);
+             phase = "connecting";
++            password = "";
+         }
+ 
+         function doDisconnect() {
+@@ -118,32 +154,43 @@ Lib.DetailPage {
+         }
+ 
+         onConnectionStateChanged: {
+-            if (connectionState === PlasmaNM.Enums.Activated) {
+-                phase = "idle";
+-            } else if (connectionState === PlasmaNM.Enums.Deactivated && phase === "connecting") {
++            if (connected || (connectionState === PlasmaNM.Enums.Deactivated && phase === "connecting"))
+                 phase = "idle";
+-            }
+         }
+ 
+         Rectangle {
+             id: container
+             anchors.left: parent.left
+             anchors.right: parent.right
++            anchors.leftMargin: 4
++            anchors.rightMargin: 4
+             height: contentLayout.implicitHeight
+             radius: 4
+-            color: delegate.expanded ? delegate.subtleBg
+-                 : (headerMA.containsMouse ? delegate.hoverBg : "transparent")
++            color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                           delegate.expanded ? 0.06 : (headerMA.containsMouse ? 0.05 : 0))
+             Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
+ 
++            // tracinho azul na rede conectada, como o item selecionado do Windows
++            Rectangle {
++                visible: delegate.connected
++                anchors.left: parent.left
++                y: 14
++                width: 3
++                height: 16
++                radius: 1.5
++                color: Kirigami.Theme.highlightColor
++            }
++
+             ColumnLayout {
+                 id: contentLayout
+                 anchors.left: parent.left
+                 anchors.right: parent.right
+                 spacing: 0
+ 
++                // ── linha da rede ───────────────────────────────────────────
+                 Item {
+                     Layout.fillWidth: true
+-                    Layout.preferredHeight: 34
++                    Layout.preferredHeight: 44
+ 
+                     MouseArea {
+                         id: headerMA
+@@ -155,15 +202,32 @@ Lib.DetailPage {
+ 
+                     RowLayout {
+                         anchors.fill: parent
+-                        anchors.leftMargin: 12
++                        anchors.leftMargin: 14
+                         anchors.rightMargin: 12
+-                        spacing: 8
++                        spacing: 12
+ 
+-                        Kirigami.Icon {
+-                            width: 20
+-                            height: 20
+-                            source: model.ConnectionIcon
+-                            color: Kirigami.Theme.textColor
++                        // sinal + cadeado das redes protegidas
++                        Item {
++                            Layout.preferredWidth: 22
++                            Layout.preferredHeight: 22
++                            Kirigami.Icon {
++                                anchors.fill: parent
++                                source: model.ConnectionIcon
++                                color: Kirigami.Theme.textColor
++                                isMask: true
++                            }
++                            Kirigami.Icon {
++                                visible: delegate.secured
++                                width: 11
++                                height: 11
++                                anchors.right: parent.right
++                                anchors.bottom: parent.bottom
++                                anchors.rightMargin: -3
++                                anchors.bottomMargin: -1
++                                source: "object-locked-symbolic"
++                                color: Kirigami.Theme.textColor
++                                isMask: true
++                            }
+                         }
+ 
+                         ColumnLayout {
+@@ -174,144 +238,94 @@ Lib.DetailPage {
+                                 Layout.fillWidth: true
+                                 text: model.ItemUniqueName
+                                 color: Kirigami.Theme.textColor
+-                                font.pixelSize: 11
+-                                font.bold: connectionState === PlasmaNM.Enums.Activated
+                                 elide: Text.ElideRight
+                             }
+-
+                             PlasmaComponents3.Label {
+-                                visible: delegate.statusText().length > 0
++                                Layout.fillWidth: true
++                                visible: text.length > 0
+                                 text: delegate.statusText()
+                                 color: Kirigami.Theme.textColor
+-                                opacity: 0.5
+-                                font.pixelSize: 9
+-                            }
+-                        }
+-
+-                        Kirigami.Icon {
+-                            visible: connectionState === PlasmaNM.Enums.Activated
+-                            Layout.preferredWidth: 20
+-                            Layout.preferredHeight: 20
+-                            source: "help-about"
+-                            color: Kirigami.Theme.textColor
+-                            opacity: infoMA.containsMouse ? 1 : 0.6
+-                            isMask: true
+-
+-                            MouseArea {
+-                                id: infoMA
+-                                anchors.fill: parent
+-                                hoverEnabled: true
+-                                cursorShape: Qt.PointingHandCursor
+-                                onClicked: KCMLauncher.openSystemSettings("kcm_networkmanagement")
++                                opacity: 0.6
++                                font.pointSize: Kirigami.Theme.smallFont.pointSize
++                                elide: Text.ElideRight
+                             }
+                         }
+                     }
+                 }
+ 
++                // ── parte que abre ao clicar ────────────────────────────────
+                 Item {
+                     Layout.fillWidth: true
+                     Layout.preferredHeight: delegate.expanded ? expandedCol.implicitHeight : 0
+                     clip: true
+-                    Behavior on Layout.preferredHeight { NumberAnimation { duration: 180; easing.type: Easing.OutQuad } }
++                    Behavior on Layout.preferredHeight { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+ 
+                     ColumnLayout {
+                         id: expandedCol
+                         anchors.left: parent.left
+                         anchors.right: parent.right
+-                        anchors.leftMargin: 12
++                        anchors.leftMargin: 48
+                         anchors.rightMargin: 12
+-                        spacing: 0
+-
+-                        Item { Layout.fillWidth: true; Layout.preferredHeight: 8 }
++                        spacing: 8
+ 
+-                        // Idle: Connect button
+-                        ColumnLayout {
++                        // desconectada: Conectar (destaque)
++                        RowLayout {
+                             Layout.fillWidth: true
+-                            spacing: 0
+-                            visible: delegate.expanded && delegate.phase === "idle"
+-                                    && connectionState !== PlasmaNM.Enums.Activated
+-                                    && connectionState !== PlasmaNM.Enums.Activating
+-
+-                            Item {
+-                                Layout.fillWidth: true
+-                                Layout.preferredHeight: 30
+-
+-                                Rectangle {
+-                                    anchors.right: parent.right
+-                                    anchors.verticalCenter: parent.verticalCenter
+-                                    width: 90
+-                                    height: 30
+-                                    radius: 4
+-                                    color: connectBtnMA.containsPress ? delegate.pressBg
+-                                         : connectBtnMA.containsMouse ? delegate.hoverBg
+-                                         : delegate.btnBg
+-                                    Behavior on color { ColorAnimation { duration: 100 } }
+-
+-                                    PlasmaComponents3.Label {
+-                                        anchors.centerIn: parent
 -                                        text: qsTr("Connect")
-+                                        text: i18n("Connect")
-                                         color: Kirigami.Theme.textColor
-                                         font.pixelSize: 11
-                                     }
-@@ -272,7 +272,7 @@ Lib.DetailPage {
-                             visible: delegate.expanded && delegate.phase === "password"
+-                                        color: Kirigami.Theme.textColor
+-                                        font.pixelSize: 11
+-                                    }
+-
+-                                    MouseArea {
+-                                        id: connectBtnMA
+-                                        anchors.fill: parent
+-                                        hoverEnabled: true
+-                                        cursorShape: Qt.PointingHandCursor
+-                                        onClicked: delegate.doConnect()
+-                                    }
+-                                }
++                            visible: delegate.phase === "idle" && !delegate.connected
++                                     && delegate.connectionState !== PlasmaNM.Enums.Activating
++                            Item { Layout.fillWidth: true }
++                            Lib.WinButton {
++                                primary: true
++                                text: i18n("Connect")
++                                implicitWidth: 140
++                                onClicked: delegate.doConnect()
+                             }
+                         }
+ 
+-                        // Password phase
++                        // senha
+                         ColumnLayout {
+                             Layout.fillWidth: true
+                             spacing: 8
+-                            visible: delegate.expanded && delegate.phase === "password"
++                            visible: delegate.phase === "password"
  
                              PlasmaComponents3.Label {
 -                                text: qsTr("Enter the network security key")
 +                                text: i18n("Enter the network security key")
                                  color: Kirigami.Theme.textColor
-                                 opacity: 0.7
-                                 font.pixelSize: 10
-@@ -285,7 +285,7 @@ Lib.DetailPage {
+-                                opacity: 0.7
+-                                font.pixelSize: 10
++                                opacity: 0.8
++                                font.pointSize: Kirigami.Theme.smallFont.pointSize
+                             }
+ 
+-                            TextField {
++                            PlasmaComponents3.TextField {
+                                 id: pwField
+                                 Layout.fillWidth: true
+                                 echoMode: delegate.showPassword ? TextInput.Normal : TextInput.Password
                                  text: delegate.password
                                  onTextEdited: delegate.password = text
-                                 font.pixelSize: 11
+-                                font.pixelSize: 11
 -                                placeholderText: qsTr("Password")
 +                                placeholderText: i18n("Password")
++                                rightPadding: eye.width + 8
                                  validator: RegularExpressionValidator {
                                      regularExpression: SecurityType === PlasmaNM.Enums.StaticWep
                                          ? /^(?:.{5}|[0-9a-fA-F]{10}|.{13}|[0-9a-fA-F]{26}){1}$/
-@@ -340,7 +340,7 @@ Lib.DetailPage {
+                                         : /^(?:.{8,64}){1}$/
+                                 }
+                                 onAccepted: if (acceptableInput) delegate.doNext()
++                                Keys.onEscapePressed: { delegate.phase = "idle"; delegate.password = ""; }
  
-                                         PlasmaComponents3.Label {
-                                             anchors.centerIn: parent
+-                                Item {
++                                Kirigami.Icon {
++                                    id: eye
+                                     anchors.right: parent.right
++                                    anchors.rightMargin: 6
+                                     anchors.verticalCenter: parent.verticalCenter
+-                                    width: 22
+-                                    height: 22
+-
+-                                    Kirigami.Icon {
+-                                        anchors.centerIn: parent
+-                                        width: 20
+-                                        height: 20
+-                                        source: delegate.showPassword ? "view-visible" : "view-hidden"
+-                                        color: Kirigami.Theme.textColor
+-                                        isMask: true
+-                                        opacity: eyeMA.containsMouse ? 1 : 0.6
+-                                    }
+-
++                                    width: 16
++                                    height: 16
++                                    source: delegate.showPassword ? "view-hidden" : "view-visible"
++                                    color: Kirigami.Theme.textColor
++                                    isMask: true
++                                    opacity: eyeMA.containsMouse ? 1 : 0.6
+                                     MouseArea {
+                                         id: eyeMA
+                                         anchors.fill: parent
++                                        anchors.margins: -4
+                                         hoverEnabled: true
+                                         cursorShape: Qt.PointingHandCursor
+                                         onClicked: delegate.showPassword = !delegate.showPassword
+@@ -322,130 +336,76 @@ Lib.DetailPage {
+                             RowLayout {
+                                 Layout.fillWidth: true
+                                 spacing: 8
+-
+-                                Item { Layout.fillWidth: true }
+-
+-                                // Cancel
+-                                Item {
+-                                    Layout.preferredWidth: 80
+-                                    Layout.preferredHeight: 30
+-
+-                                    Rectangle {
+-                                        anchors.fill: parent
+-                                        radius: 4
+-                                        color: cancelBtnMA.containsPress ? delegate.pressBg
+-                                             : cancelBtnMA.containsMouse ? delegate.hoverBg
+-                                             : delegate.btnBg
+-                                        Behavior on color { ColorAnimation { duration: 100 } }
+-
+-                                        PlasmaComponents3.Label {
+-                                            anchors.centerIn: parent
 -                                            text: qsTr("Cancel")
-+                                            text: i18n("Cancel")
-                                             color: Kirigami.Theme.textColor
-                                             font.pixelSize: 11
-                                         }
-@@ -370,7 +370,7 @@ Lib.DetailPage {
- 
-                                         PlasmaComponents3.Label {
-                                             anchors.centerIn: parent
+-                                            color: Kirigami.Theme.textColor
+-                                            font.pixelSize: 11
+-                                        }
+-
+-                                        MouseArea {
+-                                            id: cancelBtnMA
+-                                            anchors.fill: parent
+-                                            hoverEnabled: true
+-                                            cursorShape: Qt.PointingHandCursor
+-                                            onClicked: { delegate.phase = "idle"; delegate.password = ""; }
+-                                        }
+-                                    }
++                                Lib.WinButton {
++                                    Layout.fillWidth: true
++                                    primary: true
++                                    enabled: pwField.acceptableInput
++                                    text: i18n("Next")
++                                    onClicked: delegate.doNext()
+                                 }
+-
+-                                // Next (primary)
+-                                Item {
+-                                    Layout.preferredWidth: 80
+-                                    Layout.preferredHeight: 30
+-
+-                                    Rectangle {
+-                                        anchors.fill: parent
+-                                        radius: 4
+-                                        color: nextBtnMA.containsPress ? Qt.darker(Kirigami.Theme.highlightColor, 1.1)
+-                                             : Kirigami.Theme.highlightColor
+-                                        opacity: pwField.acceptableInput ? 1 : 0.4
+-                                        Behavior on color { ColorAnimation { duration: 100 } }
+-
+-                                        PlasmaComponents3.Label {
+-                                            anchors.centerIn: parent
 -                                            text: qsTr("Next")
-+                                            text: i18n("Next")
-                                             color: "#FFFFFF"
-                                             font.pixelSize: 11
-                                         }
-@@ -394,7 +394,7 @@ Lib.DetailPage {
-                             visible: delegate.expanded && delegate.phase === "connecting"
+-                                            color: "#FFFFFF"
+-                                            font.pixelSize: 11
+-                                        }
+-
+-                                        MouseArea {
+-                                            id: nextBtnMA
+-                                            anchors.fill: parent
+-                                            hoverEnabled: true
+-                                            cursorShape: Qt.PointingHandCursor
+-                                            onClicked: if (pwField.acceptableInput) delegate.doNext()
+-                                        }
+-                                    }
++                                Lib.WinButton {
++                                    Layout.fillWidth: true
++                                    text: i18n("Cancel")
++                                    onClicked: { delegate.phase = "idle"; delegate.password = ""; }
+                                 }
+                             }
+                         }
  
-                             PlasmaComponents3.Label {
+-                        // Connecting phase
++                        // conectando
+                         ColumnLayout {
+                             Layout.fillWidth: true
+                             spacing: 6
+-                            visible: delegate.expanded && delegate.phase === "connecting"
+-
+-                            PlasmaComponents3.Label {
 -                                text: qsTr("Verifying and connecting")
-+                                text: i18n("Verifying and connecting")
-                                 color: Kirigami.Theme.textColor
-                                 opacity: 0.7
-                                 font.pixelSize: 10
-@@ -429,7 +429,7 @@ Lib.DetailPage {
+-                                color: Kirigami.Theme.textColor
+-                                opacity: 0.7
+-                                font.pixelSize: 10
+-                            }
+-
++                            visible: delegate.phase === "connecting" && !delegate.connected
+                             PlasmaComponents3.ProgressBar {
+                                 Layout.fillWidth: true
+                                 indeterminate: true
+                             }
+                         }
  
-                                     PlasmaComponents3.Label {
-                                         anchors.centerIn: parent
+-                        // Connected phase
+-                        ColumnLayout {
++                        // conectada: Propriedades à esquerda, Desconectar à direita
++                        RowLayout {
+                             Layout.fillWidth: true
+-                            spacing: 0
+-                            visible: delegate.expanded && connectionState === PlasmaNM.Enums.Activated
++                            visible: delegate.connected
++                            spacing: 8
+ 
+                             Item {
+-                                Layout.fillWidth: true
+-                                Layout.preferredHeight: 30
+-
+-                                Rectangle {
+-                                    anchors.right: parent.right
++                                Layout.preferredWidth: propsRow.implicitWidth
++                                Layout.preferredHeight: 32
++                                Row {
++                                    id: propsRow
+                                     anchors.verticalCenter: parent.verticalCenter
+-                                    width: 100
+-                                    height: 30
+-                                    radius: 4
+-                                    color: discBtnMA.containsPress ? delegate.pressBg
+-                                         : discBtnMA.containsMouse ? delegate.hoverBg
+-                                         : delegate.btnBg
+-                                    Behavior on color { ColorAnimation { duration: 100 } }
+-
+-                                    PlasmaComponents3.Label {
+-                                        anchors.centerIn: parent
 -                                        text: qsTr("Disconnect")
-+                                        text: i18n("Disconnect")
-                                         color: Kirigami.Theme.textColor
-                                         font.pixelSize: 11
+-                                        color: Kirigami.Theme.textColor
+-                                        font.pixelSize: 11
++                                    spacing: 6
++                                    Kirigami.Icon {
++                                        width: 16
++                                        height: 16
++                                        anchors.verticalCenter: parent.verticalCenter
++                                        source: "help-about-symbolic"
++                                        color: propsMA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
++                                        isMask: true
                                      }
+-
+-                                    MouseArea {
+-                                        id: discBtnMA
+-                                        anchors.fill: parent
+-                                        hoverEnabled: true
+-                                        cursorShape: Qt.PointingHandCursor
+-                                        onClicked: delegate.doDisconnect()
++                                    PlasmaComponents3.Label {
++                                        anchors.verticalCenter: parent.verticalCenter
++                                        text: i18n("Properties")
++                                        color: propsMA.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                     }
+                                 }
++                                MouseArea {
++                                    id: propsMA
++                                    anchors.fill: parent
++                                    hoverEnabled: true
++                                    cursorShape: Qt.PointingHandCursor
++                                    onClicked: KCMLauncher.openSystemSettings("kcm_networkmanagement")
++                                }
++                            }
++                            Item { Layout.fillWidth: true }
++                            Lib.WinButton {
++                                text: i18n("Disconnect")
++                                implicitWidth: 120
++                                onClicked: delegate.doDisconnect()
+                             }
+                         }
+ 
+-                        Item { Layout.fillWidth: true; Layout.preferredHeight: 8 }
++                        Item { Layout.fillWidth: true; Layout.preferredHeight: 4 }
+                     }
+                 }
+             }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml
 index d7e00c5..5bbd079 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkToggle.qml
@@ -4513,6 +5001,72 @@ index 0000000..2e90dff
 +    }
 +
 +    contentItem: Item {}
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/WinButton.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/WinButton.qml
+new file mode 100644
+index 0000000..b94a49e
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/WinButton.qml
+@@ -0,0 +1,60 @@
++import QtQuick
++import org.kde.kirigami as Kirigami
++import org.kde.plasma.components as PlasmaComponents3
++
++// Botão do Windows 11: normal (cinza translúcido com borda fina) ou de
++// destaque (cor de destaque, texto escuro ou claro conforme o contraste).
++Rectangle {
++    id: button
++
++    property string text
++    property string iconName: ""
++    property bool primary: false
++    signal clicked
++
++    readonly property color accentText: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.highlightColor) === Kirigami.ColorUtils.Light
++        ? "#000000" : "#ffffff"
++
++    implicitWidth: Math.max(96, row.implicitWidth + 24)
++    implicitHeight: 32
++    radius: 4
++    opacity: enabled ? 1 : 0.45
++    color: primary
++        ? (ma.containsPress ? Qt.darker(Kirigami.Theme.highlightColor, 1.15)
++           : ma.containsMouse ? Qt.lighter(Kirigami.Theme.highlightColor, 1.08) : Kirigami.Theme.highlightColor)
++        : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                  ma.containsPress ? 0.04 : (ma.containsMouse ? 0.09 : 0.06))
++    border.width: primary ? 0 : 1
++    border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
++    Behavior on color { ColorAnimation { duration: 90 } }
++
++    Row {
++        id: row
++        anchors.centerIn: parent
++        spacing: 6
++        Kirigami.Icon {
++            visible: button.iconName !== ""
++            anchors.verticalCenter: parent.verticalCenter
++            width: 16
++            height: 16
++            source: button.iconName
++            isMask: true
++            color: button.primary ? button.accentText : Kirigami.Theme.textColor
++        }
++        PlasmaComponents3.Label {
++            anchors.verticalCenter: parent.verticalCenter
++            text: button.text
++            color: button.primary ? button.accentText : Kirigami.Theme.textColor
++            opacity: button.primary || ma.containsPress === false ? 1 : 0.8
++        }
++    }
++
++    MouseArea {
++        id: ma
++        anchors.fill: parent
++        hoverEnabled: true
++        enabled: button.enabled
++        cursorShape: Qt.PointingHandCursor
++        onClicked: button.clicked()
++    }
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 index 1380039..6eedd15 100644

@@ -380,3 +380,12 @@ msgstr "Wi-Fi — Desligado"
 
 msgid "Wi-Fi — On"
 msgstr "Wi-Fi — Ligado"
+
+msgid "Secured"
+msgstr "Protegida"
+
+msgid "Open"
+msgstr "Aberta"
+
+msgid "Properties"
+msgstr "Propriedades"
