@@ -108,18 +108,20 @@
     </State>
     <ToolBar noMerge="1" name="mainToolBar" >
         <text context="@title:menu">Main Toolbar</text>
-        <!-- Como o Explorador do Windows 11: voltar, avançar, acima, caminho, atualizar, pesquisa -->
+        <!-- Como o Explorador do Windows 11: voltar, avançar, acima, caminho, atualizar, pesquisa, painel de visualização -->
         <Action name="go_back" />
         <Action name="go_forward" />
         <Action name="go_up" />
         <Action name="url_navigators" />
         <Action name="view_redisplay" />
         <Action name="toggle_search" />
+        <Action name="show_information_panel" />
         <Action name="hamburger_menu" />
     </ToolBar>
     <ActionProperties scheme="Default">
         <!-- só o ícone, como o ⟳ do Explorador -->
         <Action priority="0" name="view_redisplay"/>
+        <Action priority="0" name="show_information_panel"/>
         <Action priority="0" name="go_back"/>
         <Action priority="0" name="go_forward"/>
         <Action priority="0" name="go_up"/>

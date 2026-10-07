@@ -21,7 +21,7 @@ index 319c551..e857db8 100644
      panels/folders/foldersitemlistwidget.h
      panels/folders/treeviewcontextmenu.h
 diff --git a/src/dolphinmainwindow.cpp b/src/dolphinmainwindow.cpp
-index a29fe0d..e431795 100644
+index a29fe0d..f6c5104 100644
 --- a/src/dolphinmainwindow.cpp
 +++ b/src/dolphinmainwindow.cpp
 @@ -24,6 +24,7 @@
@@ -41,7 +41,7 @@ index a29fe0d..e431795 100644
  #include <KConfigGui>
  #include <KDesktopFile>
  #include <KDialogJobUiDelegate>
-@@ -232,6 +235,23 @@ DolphinMainWindow::DolphinMainWindow()
+@@ -232,6 +235,31 @@ DolphinMainWindow::DolphinMainWindow()
          }
      }
  
@@ -60,12 +60,20 @@ index a29fe0d..e431795 100644
 +            group.writeEntry("NavigationPanelSetup", true);
 +            group.sync();
 +        }
++        // painel de visualização à direita (prévia e detalhes do arquivo selecionado)
++        if (!group.readEntry("PreviewPanelSetup", false)) {
++            if (auto *dock = findChild<QDockWidget *>(QStringLiteral("infoDock"))) {
++                dock->show();
++            }
++            group.writeEntry("PreviewPanelSetup", true);
++            group.sync();
++        }
 +    }
 +
      QAction *showMenuBarAction = actionCollection()->action(KStandardAction::name(KStandardAction::ShowMenubar));
      showMenuBarAction->setChecked(!menuBar()->isHidden()); //workaround for bug #171080
      QTimer::singleShot(0, this, [this, showMenuBarAction]() {
-@@ -2495,6 +2515,21 @@ void DolphinMainWindow::setupDockWidgets()
+@@ -2495,6 +2523,21 @@ void DolphinMainWindow::setupDockWidgets()
          foldersDock->hide();
      }
  
