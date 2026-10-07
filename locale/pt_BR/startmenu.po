@@ -204,3 +204,9 @@ msgstr "Vídeos"
 
 msgid "Network"
 msgstr "Rede"
+
+msgid "Open file location"
+msgstr "Abrir local do arquivo"
+
+msgid "Open program location"
+msgstr "Abrir local do programa"

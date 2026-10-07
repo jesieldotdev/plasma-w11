@@ -77,6 +77,62 @@ index e8cb979..5709acb 100644
              verticalAlignment: Text.AlignVCenter
              textFormat: Text.PlainText
  
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh b/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh
+new file mode 100755
+index 0000000..228c0f0
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh
+@@ -0,0 +1,50 @@
++#!/usr/bin/env bash
++# Abre no Dolphin onde está o programa de um atalho .desktop
++# ("Abrir local do programa" no menu Iniciar).
++#   Flatpak  -> pasta do app em .../flatpak/app/<id>
++#   Snap     -> /var/lib/snapd/snap/<nome> (ou /snap/<nome>)
++#   o resto  -> o executável (AppImage, script, binário) selecionado
++desktop=$1
++[ -f "$desktop" ] || exit 1
++
++key() { sed -n "/^\[Desktop Entry\]/,/^\[/{s/^$1=//p}" "$desktop" | head -n1; }
++open_dir() { exec dolphin --new-window "$1"; }
++select_file() { exec dolphin --new-window --select "$1"; }
++
++flatpak_id=$(key X-Flatpak)
++if [ -n "$flatpak_id" ]; then
++    for d in "$HOME/.local/share/flatpak/app/$flatpak_id" "/var/lib/flatpak/app/$flatpak_id"; do
++        [ -d "$d" ] && open_dir "$d"
++    done
++fi
++
++snap=$(key X-SnapInstanceName)
++exec_line=$(key Exec)
++if [ -z "$snap" ]; then
++    case $exec_line in */snap/bin/*|snap\ run*) snap=$(printf '%s\n' "$exec_line" | sed -E 's#.*/snap/bin/([^ ]+).*#\1#; s#^snap run ([^ ]+).*#\1#') ;; esac
++fi
++if [ -n "$snap" ]; then
++    snap=${snap%%.*}
++    for d in "/var/lib/snapd/snap/$snap" "/snap/$snap"; do
++        [ -d "$d" ] && open_dir "$d"
++    done
++fi
++
++# primeira "palavra" do Exec, sem "env VAR=..." e sem aspas (xargs separa
++# respeitando as aspas sem executar nada do que estiver na linha)
++mapfile -t words < <(printf '%s\n' "$exec_line" | xargs -n1 printf '%s\n' 2>/dev/null)
++[ ${#words[@]} -gt 0 ] || read -ra words <<< "$exec_line"
++i=0
++[ "${words[0]}" = env ] && i=1
++while [ $i -lt ${#words[@]} ] && [[ ${words[$i]} == *=* ]]; do i=$((i + 1)); done
++prog=${words[$i]}
++[ -n "$prog" ] || select_file "$desktop"
++case $prog in
++    /*) path=$prog ;;
++    *)  path=$(command -v -- "$prog") ;;
++esac
++if [ -n "$path" ] && [ -e "$path" ]; then
++    # segue links (ex.: /usr/bin/app -> /opt/App/app) até o arquivo de verdade
++    select_file "$(readlink -f -- "$path")"
++fi
++select_file "$desktop"
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml
 index b0553fc..9ea9b51 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml
@@ -133,7 +189,7 @@ index 30a7506..cd8b7b3 100644
          ComboBox {
              Kirigami.FormData.label: i18n("All apps sort")
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
-index 93b62e2..d7fe5d7 100644
+index 93b62e2..5f2873b 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
 @@ -2,14 +2,15 @@
@@ -293,14 +349,14 @@ index 93b62e2..d7fe5d7 100644
 +                NumberAnimation { target: openShift; property: "y"; from: Kirigami.Units.gridUnit * 3; to: 0; duration: 220; easing.type: Easing.OutCubic }
 +                NumberAnimation { target: rootItem; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
 +            }
- 
--            width: leftColumnWidth + rightColumnWidth + Kirigami.Units.gridUnit * 3
--            height: mainContentHeight + bottomBar.height + Kirigami.Units.gridUnit * 3
++
 +            // Medidas do Iniciar do Windows 11: 6 colunas de fixados, margens largas.
 +            readonly property int sidePadding: Kirigami.Units.gridUnit * 2
 +            readonly property int contentWidth: Kirigami.Units.gridUnit * 32
 +            readonly property int bodyHeight: Kirigami.Units.gridUnit * 30
-+
+ 
+-            width: leftColumnWidth + rightColumnWidth + Kirigami.Units.gridUnit * 3
+-            height: mainContentHeight + bottomBar.height + Kirigami.Units.gridUnit * 3
 +            width: contentWidth + sidePadding * 2
 +            height: Math.min(searchArea.height + bodyHeight + footer.implicitHeight,
 +                             kicker.screenGeometry.height - Kirigami.Units.gridUnit * 6)
@@ -377,8 +433,7 @@ index 93b62e2..d7fe5d7 100644
 -                        }
 -                    }
 -                }
-+                height: searchBar.implicitHeight + Kirigami.Units.gridUnit * 2.4
- 
+-
 -                // ── Vertical separator ───────────────────────────────────────
 -                Rectangle {
 -                    id: columnSeparator
@@ -387,7 +442,8 @@ index 93b62e2..d7fe5d7 100644
 -                    color: Kirigami.Theme.textColor
 -                    opacity: Theme.separatorOpacity
 -                }
--
++                height: searchBar.implicitHeight + Kirigami.Units.gridUnit * 2.4
+ 
 -                // ── Right column: avatar + system locations ────────────────
 -                ColumnLayout {
 -                    id: rightColumn
@@ -601,12 +657,23 @@ index 93b62e2..d7fe5d7 100644
                  }
              }
  
-@@ -451,6 +361,14 @@ Item {
+@@ -451,6 +361,25 @@ Item {
              }
  
              function handleContextAction(actionId, argument, context) {
 +                if (actionId === "_start_view_mode") {
 +                    homePage.setViewMode(argument.mode);
++                    return;
++                }
++                if (actionId === "_start_open_location") {
++                    executable.exec("dolphin --new-window --select " + Tools.shellQuote(argument.path));
++                    root.closeMenu();
++                    return;
++                }
++                if (actionId === "_start_open_program") {
++                    var script = decodeURIComponent(Qt.resolvedUrl("../code/program-location.sh").toString().replace("file://", ""));
++                    executable.exec("bash " + Tools.shellQuote(script) + " " + Tools.shellQuote(argument.path));
++                    root.closeMenu();
 +                    return;
 +                }
 +                if (actionId === "_start_move_front") {
@@ -616,7 +683,7 @@ index 93b62e2..d7fe5d7 100644
                  // Milou runner actions: invoke the named action on the
                  // current match via ResultsView.runAction().
                  if (actionId === "_milou_runner_action" && context && context.kind === "milou") {
-@@ -480,22 +398,18 @@ Item {
+@@ -480,22 +409,18 @@ Item {
              }
  
              function focusActivePageResults() {
@@ -645,7 +712,7 @@ index 93b62e2..d7fe5d7 100644
                  }
              }
  
-@@ -508,6 +422,17 @@ Item {
+@@ -508,6 +433,17 @@ Item {
  
              // Rebuild the lookup map when the source model changes.
              // Returns { favoriteId, url, actionList } or null.
@@ -663,7 +730,7 @@ index 93b62e2..d7fe5d7 100644
              function lookupAppByDisplayName(displayName) {
                  if (!displayName) return null;
                  return rootItem._appLookupMap[displayName] || null;
-@@ -581,9 +506,9 @@ Item {
+@@ -581,9 +517,9 @@ Item {
                      event.accepted = true;
                      if (root.searching) {
                          reset();
@@ -676,7 +743,7 @@ index 93b62e2..d7fe5d7 100644
                      } else {
                          root.closeMenu();
                      }
-@@ -593,7 +518,7 @@ Item {
+@@ -593,7 +529,7 @@ Item {
                  // Backspace from a list: delete last search char.
                  if (event.key === Qt.Key_Backspace) {
                      event.accepted = true;
@@ -685,7 +752,7 @@ index 93b62e2..d7fe5d7 100644
                      return;
                  }
  
-@@ -617,15 +542,17 @@ Item {
+@@ -617,15 +553,17 @@ Item {
                  if (event.text !== "" && event.text !== "\t"
                          && !(event.modifiers & Qt.ControlModifier)) {
                      event.accepted = true;
@@ -706,6 +773,49 @@ index 93b62e2..d7fe5d7 100644
          }
  
          // Locate a rootModel child row by its description.  The Kicker
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/code/tools.js b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/code/tools.js
+index 03bd928..addd437 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/code/tools.js
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/code/tools.js
+@@ -34,6 +34,18 @@ function buildAppActions(i18n, favoriteModel, favoriteId, url, actionList) {
+         }
+     }
+ 
++    // "Abrir local do arquivo", como no Windows: mostra o atalho (.desktop) no Dolphin
++    var path = desktopFilePath(url);
++    if (path !== "") {
++        if (acts.length > 0) acts.push({ "type": "separator" });
++        acts.push({ text: i18n("Open file location"), icon: "document-open-folder",
++                    actionId: "_start_open_location", actionArgument: { path: path } });
++        // e onde está o programa de verdade (executável, AppImage, pasta do Flatpak/Snap),
++        // útil para remover na mão o que não desinstala pelo Discover
++        acts.push({ text: i18n("Open program location"), icon: "system-file-manager",
++                    actionId: "_start_open_program", actionArgument: { path: path } });
++    }
++
+     var favId = resolveFavoriteId(favoriteId, url);
+     var favActions = createFavoriteActions(i18n, favoriteModel, favId);
+     if (favActions) {
+@@ -44,6 +56,19 @@ function buildAppActions(i18n, favoriteModel, favoriteId, url, actionList) {
+     return acts;
+ }
+ 
++function desktopFilePath(url) {
++    var u = (url === undefined || url === null) ? "" : url.toString();
++    if (u.indexOf("file://") !== 0 || u.slice(-8) !== ".desktop") {
++        return "";
++    }
++    return decodeURIComponent(u.slice(7));
++}
++
++// Aspas simples para o shell.
++function shellQuote(s) {
++    return "'" + s.replace(/'/g, "'\\''") + "'";
++}
++
+ function createFavoriteActions(i18n, favoriteModel, favoriteId) {
+     if (!favoriteModel || !favoriteModel.enabled || !favoriteId) {
+         return null;
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AToolButton.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AToolButton.qml
 deleted file mode 100644
 index 81453b6..0000000
