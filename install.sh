@@ -86,45 +86,25 @@ info "Compilando a bandeja"
 TRAY="$UP/plasma/applets/org.kde.windowsmodern.systemtray"
 cmake -S "$TRAY" -B "$STATE/build-systray" -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$STATE/build-systray" --parallel "$(nproc)" >/dev/null
-QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || echo /usr/lib64/qt6/plugins)
+QT_PLUGINS=$(qtpaths6 --plugin-dir 2>/dev/null || true)          # pkg-config pode devolver vazio sem erro
+[ -n "$QT_PLUGINS" ] || QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || true)
+[ -n "$QT_PLUGINS" ] || QT_PLUGINS=/usr/lib64/qt6/plugins
 as_root install -m 755 "$STATE/build-systray/lib/plasma/applets/org.kde.windowsmodern.systemtray.so" "$QT_PLUGINS/plasma/applets/"
 as_root rm -rf /usr/share/plasma/plasmoids/org.kde.windowsmodern.systemtray
 
-# ── 4b. "Este Computador" no Dolphin (thispc:/ com a barra de espaço) ─
-info "Explorador: Este Computador"
-cmake -S "$HERE/tools/thispc" -B "$STATE/build-thispc" -DCMAKE_BUILD_TYPE=Release >/dev/null
-cmake --build "$STATE/build-thispc" --parallel "$(nproc)" >/dev/null
-as_root install -m 755 "$STATE/build-thispc/lib/kf6/kio/kio_thispc.so" "$QT_PLUGINS/kf6/kio/"
-as_root install -m 755 "$STATE/build-thispc/lib/kf6/thumbcreator/thispcthumbnail.so" "$QT_PLUGINS/kf6/thumbcreator/"
-mkdir -p "$HOME/.local/share/mime/packages"
-cp "$HERE/tools/thispc/w11-thispc.xml" "$HOME/.local/share/mime/packages/"
-update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
-python3 "$HERE/tools/thispc/setup-dolphin.py" >/dev/null
-
-# ── 4c. dolphin-w11: Dolphin com o painel de navegação do Windows 11 ─
-# Mesma versão do Dolphin do sistema + patches/dolphin-w11.patch, instalado fora
-# dos pacotes ($STATE/dolphin-w11); o atalho e o serviço passam a apontar para ele.
-info "dolphin-w11: painel de navegação (Acesso rápido, Este Computador, Rede)"
-DVER=$(rpm -q --qf '%{VERSION}' dolphin 2>/dev/null || true)
-DOLPHIN_W11="$STATE/dolphin-w11"
-if [ -n "$DVER" ] && rm -rf "$STATE/dolphin-src" \
-    && git clone -q --depth 1 --branch "v$DVER" https://invent.kde.org/system/dolphin.git "$STATE/dolphin-src" 2>/dev/null \
-    && git -C "$STATE/dolphin-src" apply "$HERE/patches/dolphin-w11.patch"; then
-    cmake -S "$STATE/dolphin-src" -B "$STATE/build-dolphin" -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX="$DOLPHIN_W11" -DBUILD_TESTING=OFF >/dev/null
-    cmake --build "$STATE/build-dolphin" --parallel "$(nproc)" >/dev/null
-    cmake --install "$STATE/build-dolphin" >/dev/null
-    sed "s|^Exec=dolphin |Exec=$DOLPHIN_W11/bin/dolphin |" /usr/share/applications/org.kde.dolphin.desktop \
-        > "$HOME/.local/share/applications/org.kde.dolphin.desktop"
-    mkdir -p "$HOME/.config/systemd/user/plasma-dolphin.service.d"
-    printf '[Service]\nExecStart=\nExecStart=%s/bin/dolphin --daemon\n' "$DOLPHIN_W11" \
-        > "$HOME/.config/systemd/user/plasma-dolphin.service.d/plasma-w11.conf"
-    systemctl --user daemon-reload 2>/dev/null || true
-    ln -sf "$DOLPHIN_W11/bin/dolphin" "$BIN/dolphin-w11"
-    step "dolphin-w11 ($DVER) compilado (rode o instalador de novo quando o Dolphin for atualizado)"
+# ── 4b. dolphin-w11: o Explorador do Windows 11 (projeto à parte) ─
+# https://github.com/jesieldotdev/dolphin-w11: Dolphin com o painel de navegação,
+# "Este Computador", barras e lista do Explorador; compila a mesma versão do Dolphin
+# do sistema e instala à parte.
+info "dolphin-w11 (Explorador do Windows 11)"
+DW="$STATE/dolphin-w11"
+if [ -d "$DW/.git" ]; then
+    git -C "$DW" pull -q --ff-only || true
 else
-    warn "não deu para preparar o dolphin-w11 ($DVER); fica o Dolphin normal"
+    rm -rf "$DW"
+    git clone -q https://github.com/jesieldotdev/dolphin-w11 "$DW"
 fi
+bash "$DW/build.sh" --skip-deps || warn "o dolphin-w11 não foi instalado; fica o Dolphin normal"
 
 # ── 5. traduções ─────────────────────────────────────────────────────
 info "Traduções dos applets"

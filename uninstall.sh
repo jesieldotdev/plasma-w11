@@ -30,16 +30,12 @@ if [ "$PURGE" = 1 ]; then
            "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
     systemctl --user restart wireplumber.service 2>/dev/null || true
     find "$LOCALE_DIR" -name 'plasma_applet_org.kde.windowsmodern.*.mo' -delete 2>/dev/null || true
-    QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || echo /usr/lib64/qt6/plugins)
-    as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so" \
-                  "$QT_PLUGINS/kf6/kio/kio_thispc.so" "$QT_PLUGINS/kf6/thumbcreator/thispcthumbnail.so"
-    rm -f "$HOME/.local/share/mime/packages/w11-thispc.xml"
-    update-mime-database "$HOME/.local/share/mime" >/dev/null 2>&1 || true
-    kwriteconfig6 --file dolphinrc --group General --key HomeUrl --delete 2>/dev/null || true
-    rm -rf "$STATE/dolphin-w11" "$STATE/dolphin-src" "$STATE/build-dolphin" "$BIN/dolphin-w11" \
-           "$HOME/.local/share/applications/org.kde.dolphin.desktop" \
-           "$HOME/.config/systemd/user/plasma-dolphin.service.d/plasma-w11.conf"
-    systemctl --user daemon-reload 2>/dev/null || true
+    QT_PLUGINS=$(qtpaths6 --plugin-dir 2>/dev/null || true)          # pkg-config pode devolver vazio sem erro
+    [ -n "$QT_PLUGINS" ] || QT_PLUGINS=$(pkg-config --variable=plugindir Qt6Core 2>/dev/null || true)
+    [ -n "$QT_PLUGINS" ] || QT_PLUGINS=/usr/lib64/qt6/plugins
+    as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so"
+    [ -x "$STATE/dolphin-w11/uninstall.sh" ] && bash "$STATE/dolphin-w11/uninstall.sh" || true
+    rm -rf "$STATE/dolphin-w11"
     restart_shell
     echo "Os backups continuam em $STATE/backups (apague à mão se quiser)."
 fi

@@ -1,9 +1,0 @@
-{
-    "CacheThumbnail": false,
-    "KPlugin": {
-        "Name": "Unidades (Este Computador)",
-        "Name[pt_BR]": "Unidades (Este Computador)",
-        "MimeTypes": ["application/x-w11-drive"],
-        "EnabledByDefault": true
-    }
-}

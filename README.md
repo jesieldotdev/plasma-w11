@@ -19,14 +19,10 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
   mesmos desenhos do Windows 11, com tamanho óptico uniforme.
 - **Cursor Aero e sons** originais, tirados da sua instalação do Windows.
 - **Painel acrílico** (translúcido e desfocado) e **bordas arredondadas** de 8 px.
-- **Explorador abrindo em "Este Computador"**: o Dolphin abre numa página com as Pastas e
-  as Unidades e dispositivos, cada unidade com a barra de espaço usado e "X GB livres de
-  Y GB", como no Windows 11 (`thispc:/`, também no painel lateral).
-- **dolphin-w11**: o Dolphin com o painel de navegação do Explorador, uma árvore só com
-  Acesso rápido (pastas fixadas, com 📌), Este Computador (pastas e unidades, expandindo
-  as subpastas), unidades removíveis e Rede. É o Dolphin do sistema compilado com
-  `patches/dolphin-w11.patch` e instalado à parte; vira o gerenciador de arquivos padrão.
-  Rode o instalador de novo quando o Dolphin for atualizado.
+- **Explorador do Windows 11**: o [dolphin-w11](https://github.com/jesieldotdev/dolphin-w11),
+  projeto à parte que o instalador baixa e compila: painel de navegação (Acesso rápido, Este
+  Computador, Rede), página "Este Computador" com a barra de espaço das unidades, barras de
+  comandos e de endereço com pesquisa, lista simples e painel de visualização.
 - **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
   alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
   barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,
