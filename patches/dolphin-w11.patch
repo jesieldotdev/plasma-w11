@@ -1,20 +1,22 @@
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 319c551..a0f8804 100644
+index 319c551..e857db8 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -307,6 +307,7 @@ target_sources(dolphinstatic PRIVATE
+@@ -307,6 +307,8 @@ target_sources(dolphinstatic PRIVATE
      filterbar/filterbar.cpp
      kitemviews/kfileitemlisttostring.cpp
      panels/places/placespanel.cpp
 +    panels/navigation/navigationpanel.cpp
++    views/thispcpage.cpp
      panels/panel.cpp
      panels/folders/foldersitemlistwidget.cpp
      panels/folders/treeviewcontextmenu.cpp
-@@ -376,6 +377,7 @@ target_sources(dolphinstatic PRIVATE
+@@ -376,6 +378,8 @@ target_sources(dolphinstatic PRIVATE
      filterbar/filterbar.h
      kitemviews/kfileitemlisttostring.h
      panels/places/placespanel.h
 +    panels/navigation/navigationpanel.h
++    views/thispcpage.h
      panels/panel.h
      panels/folders/foldersitemlistwidget.h
      panels/folders/treeviewcontextmenu.h
@@ -85,12 +87,45 @@ index a29fe0d..e431795 100644
      // Setup "Places"
      DolphinDockWidget *placesDock = new DolphinDockWidget(i18nc("@title:window", "Places"));
      placesDock->setLocked(lock);
+diff --git a/src/dolphinviewcontainer.cpp b/src/dolphinviewcontainer.cpp
+index 968919b..2691119 100644
+--- a/src/dolphinviewcontainer.cpp
++++ b/src/dolphinviewcontainer.cpp
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include "dolphinviewcontainer.h"
++#include "views/thispcpage.h"
+ 
+ #include "admin/bar.h"
+ #include "admin/workerintegration.h"
+@@ -178,6 +179,20 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
+ 
+     m_topLayout->addWidget(m_messageWidget, positionFor.messageWidget, 0);
+     m_topLayout->addWidget(m_view, positionFor.view, 0);
++
++    // plasma-w11: em thispc:/ mostra a página "Este Computador" do Windows no lugar da lista
++    auto *thisPcPage = new ThisPcPage(this);
++    thisPcPage->hide();
++    m_topLayout->addWidget(thisPcPage, positionFor.view, 0);
++    const auto showThisPc = [this, thisPcPage](const QUrl &url) {
++        const bool on = url.scheme() == QLatin1String("thispc");
++        thisPcPage->setVisible(on);
++        m_view->setVisible(!on);
++    };
++    connect(m_view, &DolphinView::urlChanged, thisPcPage, showThisPc);
++    connect(thisPcPage, &ThisPcPage::urlActivated, this, &DolphinViewContainer::setUrl);
++    connect(thisPcPage, &ThisPcPage::urlInNewTab, this, &DolphinViewContainer::tabRequested);
++    showThisPc(m_view->url());
+     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
+     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
+         m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
 diff --git a/src/panels/navigation/navigationpanel.cpp b/src/panels/navigation/navigationpanel.cpp
 new file mode 100644
-index 0000000..77e9d30
+index 0000000..8c492cf
 --- /dev/null
 +++ b/src/panels/navigation/navigationpanel.cpp
-@@ -0,0 +1,491 @@
+@@ -0,0 +1,509 @@
 +/*
 + * Painel de navegação no estilo do Explorador do Windows 11 (plasma-w11).
 + *
@@ -161,6 +196,21 @@ index 0000000..77e9d30
 +{
 +    return root.startsWith(QLatin1String("/run/media")) || root.startsWith(QLatin1String("/media"));
 +}
++
++// Árvore com respiro na borda esquerda e em cima, como no Explorador (a margem
++// fica dentro da área de rolagem; em volta dela o tema desenharia uma borda)
++class NavTreeView : public QTreeView
++{
++public:
++    using QTreeView::QTreeView;
++
++protected:
++    void updateGeometries() override
++    {
++        QTreeView::updateGeometries(); // redefine as margens por causa do cabeçalho
++        setViewportMargins(8, 4, 0, 0);
++    }
++};
 +
 +// Setas finas do Windows (› e ⌄) no lugar das linhas pontilhadas da árvore
 +class ChevronStyle : public QProxyStyle
@@ -278,7 +328,7 @@ index 0000000..77e9d30
 +    m_model = new QStandardItemModel(this);
 +    m_places = new KFilePlacesModel(this);
 +
-+    m_view = new QTreeView(this);
++    m_view = new NavTreeView(this);
 +    m_view->setModel(m_model);
 +    m_view->setHeaderHidden(true);
 +    m_view->setIconSize(QSize(16, 16));
@@ -298,7 +348,10 @@ index 0000000..77e9d30
 +    selected.setAlphaF(0.14);
 +    pal.setColor(QPalette::Highlight, selected);
 +    pal.setColor(QPalette::HighlightedText, pal.color(QPalette::Text));
++    // fundo transparente: a margem e a árvore ficam da mesma cor (sem cara de borda)
++    pal.setColor(QPalette::Base, Qt::transparent);
 +    m_view->setPalette(pal);
++    m_view->viewport()->setAutoFillBackground(false);
 +    m_view->viewport()->installEventFilter(this);
 +
 +    auto *layout = new QVBoxLayout(this);
@@ -646,6 +699,448 @@ index 0000000..d5e34de
 +    QList<QStandardItem *> m_removable;
 +    QTimer *m_rebuildTimer = nullptr;
 +    bool m_selecting = false;
++};
++
++#endif
+diff --git a/src/views/thispcpage.cpp b/src/views/thispcpage.cpp
+new file mode 100644
+index 0000000..6adbac6
+--- /dev/null
++++ b/src/views/thispcpage.cpp
+@@ -0,0 +1,375 @@
++/*
++ * Página "Este Computador" no estilo do Windows 11 (plasma-w11).
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "thispcpage.h"
++
++#include <KIO/Global>
++
++#include <QApplication>
++#include <QDir>
++#include <QFileInfo>
++#include <QFrame>
++#include <QGridLayout>
++#include <QHBoxLayout>
++#include <QIcon>
++#include <QLocale>
++#include <QMouseEvent>
++#include <QPainter>
++#include <QPainterPath>
++#include <QSet>
++#include <QStandardPaths>
++#include <QStorageInfo>
++#include <QStyle>
++#include <QToolButton>
++#include <QVBoxLayout>
++
++#include <functional>
++
++namespace
++{
++constexpr int ColumnWidth = 250; // largura de cada coluna de blocos (pastas e unidades iguais)
++
++bool isRealDrive(const QStorageInfo &s)
++{
++    if (!s.isValid() || !s.isReady() || s.bytesTotal() <= 0) {
++        return false;
++    }
++    static const QList<QByteArray> fs = {"ext2", "ext3", "ext4", "btrfs", "xfs", "f2fs", "ntfs", "ntfs3",
++                                         "fuseblk", "vfat", "exfat", "msdos", "jfs", "reiserfs", "zfs"};
++    const QString root = s.rootPath();
++    return fs.contains(s.fileSystemType()) && !root.startsWith(QLatin1String("/boot")) && !root.startsWith(QLatin1String("/var/"))
++        && !root.startsWith(QLatin1String("/snap"));
++}
++
++// "57,1 GB" como o Windows (que chama GiB de GB)
++QString gb(qint64 bytes)
++{
++    const double v = bytes / 1073741824.0;
++    return QLocale(QLocale::Portuguese, QLocale::Brazil).toString(v, 'f', v < 100 ? 1 : 0) + QStringLiteral(" GB");
++}
++
++QColor alpha(QColor c, qreal a)
++{
++    c.setAlphaF(a);
++    return c;
++}
++
++// seta fina do Windows: ⌄ aberto, › fechado
++QIcon chevron(bool open, const QColor &color)
++{
++    QPixmap pm(QSize(12, 12) * qApp->devicePixelRatio());
++    pm.setDevicePixelRatio(qApp->devicePixelRatio());
++    pm.fill(Qt::transparent);
++    QPainter p(&pm);
++    p.setRenderHint(QPainter::Antialiasing);
++    p.setPen(QPen(color, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
++    QPolygonF line;
++    if (open) {
++        line << QPointF(2.5, 4.5) << QPointF(6, 8) << QPointF(9.5, 4.5);
++    } else {
++        line << QPointF(4.5, 2.5) << QPointF(8, 6) << QPointF(4.5, 9.5);
++    }
++    p.drawPolyline(line);
++    return QIcon(pm);
++}
++
++// Bloco de "Este Computador": ícone à esquerda; nas unidades, nome, barra e espaço livre
++class Tile : public QWidget
++{
++public:
++    QUrl url;
++    QIcon icon;
++    QString title;
++    QString subtitle;
++    double used = -1; // < 0: pasta (sem barra)
++    bool selected = false;
++    std::function<void(Tile *)> onSelect;
++    std::function<void(const QUrl &)> onActivate;
++    std::function<void(const QUrl &)> onNewTab;
++
++    explicit Tile(QWidget *parent)
++        : QWidget(parent)
++    {
++        setAttribute(Qt::WA_Hover);
++        setCursor(Qt::PointingHandCursor);
++        setToolTip(QString());
++    }
++
++    bool isDrive() const
++    {
++        return used >= 0;
++    }
++
++    QSize sizeHint() const override
++    {
++        return QSize(ColumnWidth - 12, isDrive() ? 64 : 44);
++    }
++
++protected:
++    void paintEvent(QPaintEvent *) override
++    {
++        QPainter p(this);
++        p.setRenderHint(QPainter::Antialiasing);
++        const QColor text = palette().color(QPalette::WindowText);
++        const bool hover = underMouse();
++
++        // fundo do bloco: arredondado no hover; selecionado com borda fina, como no Windows
++        if (selected || hover) {
++            p.setPen(selected ? QPen(alpha(text, 0.25), 1) : Qt::NoPen);
++            p.setBrush(alpha(text, selected ? 0.12 : 0.06));
++            p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
++        }
++
++        const int iconSize = isDrive() ? 48 : 32;
++        const int pad = 8;
++        icon.paint(&p, QRect(pad, (height() - iconSize) / 2, iconSize, iconSize));
++        const int x = pad + iconSize + 10;
++        const int textWidth = width() - x - pad;
++
++        QFont font = this->font();
++        p.setPen(text);
++        if (!isDrive()) {
++            p.setFont(font);
++            p.drawText(QRect(x, 0, textWidth, height()), Qt::AlignVCenter | Qt::AlignLeft,
++                       fontMetrics().elidedText(title, Qt::ElideRight, textWidth));
++            return;
++        }
++
++        const QFontMetrics fm(font);
++        const int lineH = fm.height();
++        const int barH = 13;
++        const int top = (height() - (lineH + 4 + barH + 3 + lineH)) / 2;
++        p.drawText(QRect(x, top, textWidth, lineH), Qt::AlignLeft | Qt::AlignVCenter, fm.elidedText(title, Qt::ElideRight, textWidth));
++
++        // barra do Windows: trilho claro com borda, parte usada azul (vermelha acima de 90%)
++        const int barW = qMin(textWidth, 180);
++        const QRect bar(x, top + lineH + 4, barW, barH);
++        p.setPen(QPen(QColor(0xBC, 0xBC, 0xBC), 1));
++        p.setBrush(QColor(0xE6, 0xE6, 0xE6));
++        p.drawRect(QRectF(bar).adjusted(0.5, 0.5, -0.5, -0.5));
++        QRectF fill = QRectF(bar).adjusted(1, 1, -1, -1);
++        fill.setWidth(qMax(1.0, fill.width() * used));
++        p.fillRect(fill, used >= 0.9 ? QColor(0xDA, 0x26, 0x26) : QColor(0x26, 0xA0, 0xDA));
++
++        p.setPen(alpha(text, 0.7));
++        p.drawText(QRect(x, bar.bottom() + 3, textWidth, lineH), Qt::AlignLeft | Qt::AlignVCenter,
++                   fm.elidedText(subtitle, Qt::ElideRight, textWidth));
++    }
++
++    void mousePressEvent(QMouseEvent *event) override
++    {
++        if (event->button() == Qt::LeftButton && onSelect) {
++            onSelect(this);
++        }
++    }
++
++    void mouseReleaseEvent(QMouseEvent *event) override
++    {
++        if (!rect().contains(event->position().toPoint())) {
++            return;
++        }
++        if (event->button() == Qt::MiddleButton && onNewTab) {
++            onNewTab(url);
++        } else if (event->button() == Qt::LeftButton && style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, nullptr, this)
++                   && onActivate) {
++            onActivate(url);
++        }
++    }
++
++    void mouseDoubleClickEvent(QMouseEvent *event) override
++    {
++        if (event->button() == Qt::LeftButton && !style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick, nullptr, this)
++            && onActivate) {
++            onActivate(url);
++        }
++    }
++
++    void enterEvent(QEnterEvent *) override
++    {
++        update();
++    }
++    void leaveEvent(QEvent *) override
++    {
++        update();
++    }
++};
++} // namespace
++
++ThisPcPage::ThisPcPage(QWidget *parent)
++    : QScrollArea(parent)
++{
++    setFrameShape(QFrame::NoFrame);
++    setWidgetResizable(true);
++    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
++
++    auto *content = new QWidget(this);
++    auto *layout = new QVBoxLayout(content);
++    layout->setContentsMargins(16, 8, 16, 16);
++    layout->setSpacing(6);
++    setupSection(m_folders, content);
++    setupSection(m_drives, content);
++    layout->addStretch(1);
++    setWidget(content);
++}
++
++void ThisPcPage::setupSection(Section &section, QWidget *content)
++{
++    auto *layout = static_cast<QVBoxLayout *>(content->layout());
++
++    // cabeçalho "⌄ Pastas (6) ─────", que recolhe o grupo ao clicar
++    auto *headerRow = new QWidget(content);
++    auto *headerLayout = new QHBoxLayout(headerRow);
++    headerLayout->setContentsMargins(0, 6, 0, 0);
++    section.header = new QToolButton(headerRow);
++    section.header->setAutoRaise(true);
++    section.header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
++    const QColor textColor = palette().color(QPalette::WindowText);
++    section.header->setIcon(chevron(true, textColor));
++    section.header->setIconSize(QSize(12, 12));
++    // linha fina depois do título, como no Explorador
++    auto *line = new QWidget(headerRow);
++    line->setFixedHeight(1);
++    line->setAutoFillBackground(true);
++    QPalette linePal = line->palette();
++    linePal.setColor(QPalette::Window, alpha(textColor, 0.15));
++    line->setPalette(linePal);
++    headerLayout->addWidget(section.header);
++    headerLayout->addWidget(line, 1, Qt::AlignVCenter);
++    layout->addWidget(headerRow);
++
++    section.body = new QWidget(content);
++    section.grid = new QGridLayout(section.body);
++    section.grid->setContentsMargins(4, 2, 0, 6);
++    section.grid->setHorizontalSpacing(12);
++    section.grid->setVerticalSpacing(4);
++    section.grid->setAlignment(Qt::AlignLeft | Qt::AlignTop);
++    layout->addWidget(section.body);
++
++    QWidget *body = section.body;
++    QToolButton *header = section.header;
++    connect(section.header, &QToolButton::clicked, this, [body, header, textColor]() {
++        const bool open = !body->isVisible();
++        body->setVisible(open);
++        header->setIcon(chevron(open, textColor));
++    });
++}
++
++void ThisPcPage::refresh()
++{
++    for (Section *section : {&m_folders, &m_drives}) {
++        qDeleteAll(section->tiles);
++        section->tiles.clear();
++    }
++
++    auto addTile = [this](Section &section, const QUrl &url, const QIcon &icon, const QString &title) {
++        auto *tile = new Tile(section.body);
++        tile->url = url;
++        tile->icon = icon;
++        tile->title = title;
++        tile->setToolTip(url.toLocalFile());
++        tile->onSelect = [this](Tile *t) {
++            clearSelection(t);
++        };
++        tile->onActivate = [this](const QUrl &u) {
++            Q_EMIT urlActivated(u);
++        };
++        tile->onNewTab = [this](const QUrl &u) {
++            Q_EMIT urlInNewTab(u);
++        };
++        section.tiles.append(tile);
++        return tile;
++    };
++
++    // pastas do usuário, na ordem do Windows
++    const QStandardPaths::StandardLocation folders[] = {QStandardPaths::DesktopLocation, QStandardPaths::DocumentsLocation,
++                                                        QStandardPaths::DownloadLocation, QStandardPaths::PicturesLocation,
++                                                        QStandardPaths::MusicLocation, QStandardPaths::MoviesLocation};
++    for (const auto loc : folders) {
++        const QString path = QStandardPaths::writableLocation(loc);
++        if (path.isEmpty() || path == QDir::homePath() || !QDir(path).exists()) {
++            continue;
++        }
++        const QUrl url = QUrl::fromLocalFile(path);
++        addTile(m_folders, url, QIcon::fromTheme(KIO::iconNameForUrl(url)), QFileInfo(path).fileName());
++    }
++
++    // unidades montadas, com a barra de espaço
++    QSet<QByteArray> seen;
++    const auto volumes = QStorageInfo::mountedVolumes();
++    for (const QStorageInfo &s : volumes) {
++        if (!isRealDrive(s) || seen.contains(s.device())) {
++            continue;
++        }
++        seen.insert(s.device());
++        const QString root = s.rootPath();
++        QString label = s.displayName();
++        if (root == QLatin1String("/")) {
++            label = QStringLiteral("Disco Local (/)");
++        } else if (label.isEmpty() || label == root) {
++            label = QFileInfo(root).fileName();
++        }
++        const bool removable = root.startsWith(QLatin1String("/run/media")) || root.startsWith(QLatin1String("/media"));
++        Tile *tile = addTile(m_drives, QUrl::fromLocalFile(root),
++                             QIcon::fromTheme(removable ? QStringLiteral("drive-removable-media-usb") : QStringLiteral("drive-harddisk")), label);
++        tile->used = 1.0 - double(s.bytesAvailable()) / double(s.bytesTotal());
++        tile->subtitle = QStringLiteral("%1 livre(s) de %2").arg(gb(s.bytesAvailable()), gb(s.bytesTotal()));
++        tile->setToolTip(root);
++    }
++
++    m_folders.header->setText(QStringLiteral("Pastas (%1)").arg(m_folders.tiles.size()));
++    m_drives.header->setText(QStringLiteral("Dispositivos e unidades (%1)").arg(m_drives.tiles.size()));
++    m_columns = 0;
++    relayout();
++}
++
++void ThisPcPage::clearSelection(QWidget *except)
++{
++    for (Section *section : {&m_folders, &m_drives}) {
++        for (QWidget *w : std::as_const(section->tiles)) {
++            auto *tile = static_cast<Tile *>(w);
++            tile->selected = (w == except);
++            tile->update();
++        }
++    }
++}
++
++void ThisPcPage::layoutSection(Section &section, int columns)
++{
++    for (QWidget *tile : std::as_const(section.tiles)) {
++        section.grid->removeWidget(tile);
++    }
++    for (int i = 0; i < section.tiles.size(); ++i) {
++        QWidget *tile = section.tiles.at(i);
++        tile->setFixedSize(tile->sizeHint());
++        section.grid->addWidget(tile, i / columns, i % columns);
++        tile->show();
++    }
++}
++
++void ThisPcPage::relayout()
++{
++    const int columns = qMax(1, (viewport()->width() - 32) / ColumnWidth);
++    if (columns == m_columns) {
++        return;
++    }
++    m_columns = columns;
++    layoutSection(m_folders, columns);
++    layoutSection(m_drives, columns);
++}
++
++void ThisPcPage::resizeEvent(QResizeEvent *event)
++{
++    QScrollArea::resizeEvent(event);
++    relayout();
++}
++
++void ThisPcPage::showEvent(QShowEvent *event)
++{
++    refresh(); // espaço livre sempre atual ao voltar para a página
++    QScrollArea::showEvent(event);
++}
++
++#include "moc_thispcpage.cpp"
+diff --git a/src/views/thispcpage.h b/src/views/thispcpage.h
+new file mode 100644
+index 0000000..f8fc3ad
+--- /dev/null
++++ b/src/views/thispcpage.h
+@@ -0,0 +1,55 @@
++/*
++ * Página "Este Computador" no estilo do Windows 11 (plasma-w11): mostrada no
++ * lugar da lista de arquivos em thispc:/, com os grupos "Pastas" e
++ * "Dispositivos e unidades" em blocos (ícone à esquerda; nas unidades, nome,
++ * barra de espaço e "X GB livre(s) de Y GB").
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#ifndef THISPCPAGE_H
++#define THISPCPAGE_H
++
++#include <QScrollArea>
++#include <QUrl>
++
++class QGridLayout;
++class QLabel;
++class QToolButton;
++
++class ThisPcPage : public QScrollArea
++{
++    Q_OBJECT
++
++public:
++    explicit ThisPcPage(QWidget *parent = nullptr);
++
++    /** Relê pastas e unidades (espaço livre atualizado). */
++    void refresh();
++
++Q_SIGNALS:
++    void urlActivated(const QUrl &url);
++    void urlInNewTab(const QUrl &url);
++
++protected:
++    void resizeEvent(QResizeEvent *event) override;
++    void showEvent(QShowEvent *event) override;
++
++private:
++    struct Section {
++        QToolButton *header = nullptr;
++        QWidget *body = nullptr;
++        QGridLayout *grid = nullptr;
++        QList<QWidget *> tiles;
++    };
++    void setupSection(Section &section, QWidget *content);
++    void layoutSection(Section &section, int tileWidth);
++    void relayout();
++    void clearSelection(QWidget *except);
++
++    Section m_folders;
++    Section m_drives;
++    int m_columns = 0;
 +};
 +
 +#endif
