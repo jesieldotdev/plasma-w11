@@ -2969,7 +2969,7 @@ index 7504c55..d26edbf 100644
  
      function isThemedApplet(applet) {
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
-index 64108fe..da4e5ad 100644
+index 64108fe..4bd6a1f 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
 @@ -24,12 +24,13 @@ PlasmaComponents3.ScrollView {
@@ -2988,6 +2988,42 @@ index 64108fe..da4e5ad 100644
  
          currentIndex: -1
          highlight: PlasmaExtras.Highlight {}
+@@ -41,11 +42,33 @@ PlasmaComponents3.ScrollView {
+ 
+         model: root.hiddenModel
+         delegate: ItemLoader {
++            id: hiddenDelegate
+             width: hiddenTasks.cellWidth - hiddenTasks.cellSpacing
+             height: hiddenTasks.cellHeight - hiddenTasks.cellSpacing
+-            x: hiddenTasks.cellSpacing / 2
+-            y: hiddenTasks.cellSpacing / 2
+             Accessible.role: Accessible.ListItem
++
++            // Arrastar para fora da caixa (para baixo, em direção à barra) põe o
++            // ícone de volta na barra, como no Windows 11.
++            readonly property bool willShow: outDrag.active
++                && y + height / 2 + outDrag.activeTranslation.y > hiddenTasks.contentHeight + height / 2
++            transform: Translate {
++                x: outDrag.active ? outDrag.activeTranslation.x : 0
++                y: outDrag.active ? outDrag.activeTranslation.y : 0
++            }
++            opacity: outDrag.active ? (willShow ? 0.4 : 0.7) : 1
++            z: outDrag.active ? 1000 : 0
++            DragHandler {
++                id: outDrag
++                target: null
++                onActiveChanged: if (active) {
++                    hiddenDelegate.willShowOnRelease = false;
++                } else if (hiddenDelegate.willShowOnRelease) {
++                    root.setItemPlace(root.hiddenModel.data(root.hiddenModel.index(hiddenDelegate.index, 0), Qt.UserRole + 2), "shown");
++                }
++            }
++            // willShow já virou false quando active muda; guarda o último valor
++            property bool willShowOnRelease: false
++            onWillShowChanged: if (outDrag.active) willShowOnRelease = willShow
+         }
+ 
+         keyNavigationEnabled: true
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
 index c9053d5..b70abcb 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
@@ -3284,7 +3320,7 @@ index 71df315..6b8a172 100644
      readonly property bool sourceAvailable: source && !(source.name === "auto_null")
  
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
-index 1380039..d090767 100644
+index 1380039..6eedd15 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 @@ -26,7 +26,7 @@ ContainmentItem {
@@ -3296,7 +3332,7 @@ index 1380039..d090767 100644
      LayoutMirroring.childrenInherit: true
  
      readonly property alias systemTrayState: systemTrayState
-@@ -53,6 +53,26 @@ ContainmentItem {
+@@ -53,6 +53,38 @@ ContainmentItem {
          }
      }
  
@@ -3304,6 +3340,18 @@ index 1380039..d090767 100644
 +        target: Plasmoid.systemTrayModel
 +        property: "itemOrder"
 +        value: Plasmoid.configuration.itemOrder
++    }
++
++    // Arrastar entre a barra e a caixa da seta ^ (como no Windows 11):
++    // "hidden" = sempre na caixa, "shown" = sempre na barra.
++    function setItemPlace(itemId: string, place: string) {
++        if (!itemId) return;
++        const without = (list) => Array.from(list || []).filter(id => id && id !== itemId);
++        const shown = without(Plasmoid.configuration.shownItems);
++        const hidden = without(Plasmoid.configuration.hiddenItems);
++        (place === "hidden" ? hidden : shown).push(itemId);
++        Plasmoid.configuration.shownItems = shown;
++        Plasmoid.configuration.hiddenItems = hidden;
 +    }
 +
 +    // Move o item visível `from` para a posição `to` e salva a ordem completa.
@@ -3323,7 +3371,7 @@ index 1380039..d090767 100644
      KItemModels.KSortFilterProxyModel {
          id: activeModel
          filterRoleName: "effectiveStatus"
-@@ -85,7 +105,7 @@ ContainmentItem {
+@@ -85,7 +117,7 @@ ContainmentItem {
              target: applet
              function onExpandedChanged(expanded: bool) {
                  if (expanded) {
@@ -3332,7 +3380,7 @@ index 1380039..d090767 100644
                  }
              }
          }
-@@ -101,7 +121,7 @@ ContainmentItem {
+@@ -101,7 +133,7 @@ ContainmentItem {
              target: applet
              function onExpandedChanged(expanded: bool) {
                  if (expanded) {
@@ -3341,7 +3389,7 @@ index 1380039..d090767 100644
                  }
              }
          }
-@@ -179,7 +199,7 @@ ContainmentItem {
+@@ -179,7 +211,7 @@ ContainmentItem {
                  id: tasksGrid
  
                  Layout.row: root.vertical && root.reverseLayout ? 1 : 0 // Explicitly define grid coordinates
@@ -3350,29 +3398,46 @@ index 1380039..d090767 100644
  
                  Layout.alignment: Qt.AlignCenter
  
-@@ -237,6 +257,32 @@ ContainmentItem {
+@@ -237,6 +269,49 @@ ContainmentItem {
                      width: tasksGrid.cellWidth
                      height: tasksGrid.cellHeight
  
 +                    // Arrastar e soltar: segurar e arrastar move o ícone; clique continua normal.
 +                    readonly property real dragOffset: trayDrag.active
 +                        ? (root.vertical ? trayDrag.activeTranslation.y : trayDrag.activeTranslation.x) : 0
++                    // para cima (para fora da barra) = mandar para a caixa da seta ^
++                    readonly property real dragAway: trayDrag.active && !root.vertical ? trayDrag.activeTranslation.y : 0
++                    readonly property bool overExpander: {
++                        if (!trayDrag.active || !expander.visible) return false;
++                        const p = delegate.mapToItem(expander, delegate.width / 2 + trayDrag.activeTranslation.x,
++                                                     delegate.height / 2 + trayDrag.activeTranslation.y);
++                        return p.x >= 0 && p.x <= expander.width && p.y >= -expander.height && p.y <= expander.height;
++                    }
++                    readonly property bool willHide: overExpander || dragAway < -tasksGrid.cellHeight * 0.6
++                    // ao soltar, active já é false e willHide zera: guarda o último valor
++                    property bool willHideOnRelease: false
++                    onWillHideChanged: if (trayDrag.active) willHideOnRelease = willHide
 +                    transform: Translate {
 +                        x: root.vertical ? 0 : delegate.dragOffset
-+                        y: root.vertical ? delegate.dragOffset : 0
++                        y: root.vertical ? delegate.dragOffset : Math.min(0, delegate.dragAway)
 +                    }
-+                    opacity: trayDrag.active ? 0.7 : 1
++                    opacity: trayDrag.active ? (willHide ? 0.4 : 0.7) : 1
 +                    DragHandler {
 +                        id: trayDrag
 +                        target: null
-+                        xAxis.enabled: !root.vertical
-+                        yAxis.enabled: root.vertical
++                        xAxis.enabled: true
++                        yAxis.enabled: true
 +                        onActiveChanged: {
 +                            if (active) {
 +                                delegate.z = 1000;
++                                delegate.willHideOnRelease = false;
 +                                return;
 +                            }
 +                            delegate.z = delegate.x + 1;
++                            if (delegate.willHideOnRelease) {
++                                root.setItemPlace(activeModel.data(activeModel.index(delegate.index, 0), Qt.UserRole + 2), "hidden");
++                                return;
++                            }
 +                            const cell = root.vertical ? tasksGrid.cellHeight : tasksGrid.cellWidth;
 +                            const steps = Math.round(delegate.dragOffset / cell);
 +                            const to = Math.max(0, Math.min(tasksGrid.count - 1, delegate.index + steps));
@@ -3383,7 +3448,7 @@ index 1380039..d090767 100644
                      // We need to recalculate the stacking order of the z values due to how keyboard navigation works
                      // the tab order depends exclusively from this, so we redo it as the position in the list
                      // ensuring tab navigation focuses the expected items
-@@ -258,7 +304,7 @@ ContainmentItem {
+@@ -258,7 +333,7 @@ ContainmentItem {
                  id: expander
  
                  Layout.row: root.vertical && !root.reverseLayout ? 1 : 0 // Explicitly define grid coordinates
@@ -3392,7 +3457,7 @@ index 1380039..d090767 100644
  
                  Layout.fillWidth: vertical
                  Layout.fillHeight: !vertical
-@@ -289,7 +335,8 @@ ContainmentItem {
+@@ -289,7 +364,8 @@ ContainmentItem {
                  default:
                      return Qt.TopEdge
              }
@@ -3402,7 +3467,7 @@ index 1380039..d090767 100644
  
              Behavior on margin {
                  NumberAnimation {
-@@ -303,9 +350,8 @@ ContainmentItem {
+@@ -303,9 +379,8 @@ ContainmentItem {
  
              floating: Plasmoid.location == PlasmaCore.Desktop
  
