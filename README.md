@@ -19,6 +19,10 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
   mesmos desenhos do Windows 11, com tamanho óptico uniforme.
 - **Cursor Aero e sons** originais, tirados da sua instalação do Windows.
 - **Painel acrílico** (translúcido e desfocado) e **bordas arredondadas** de 8 px.
+- **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
+  alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
+  barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,
+  transparência e quais ícones da bandeja ficam sempre visíveis — tudo vale na hora.
 - **Ícones do painel**: janela para trocar cada ícone da bandeja (por variação —
   play/pause, cada nível de bateria e Wi-Fi…), com tamanho e cor; aceita SVGs da
   Lucide e similares.

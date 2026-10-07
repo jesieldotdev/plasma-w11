@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""Configurações da barra de tarefas — as opções do Windows 11 para o painel do Plasma.
+
+Tudo vale na hora, como no Windows: alinhamento, ocultar automaticamente,
+botões pequenos / altura, contadores nos apps, combinar janelas, canto de
+mostrar a área de trabalho, transparência e quais ícones da bandeja ficam
+sempre visíveis. Mexe no painel pelo script do plasmashell (evaluateScript).
+"""
+import json, os, re, subprocess, sys, unicodedata
+
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Property, QRectF, QSize, QTimer, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPalette
+from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+                               QSlider, QVBoxLayout, QWidget)
+
+TITLE = 'Configurações da barra de tarefas'
+SMALL, NORMAL = 36, 48
+
+# Acha o painel que tem a lista de apps; as funções abaixo usam p, tasks, tray...
+PRELUDE = r'''
+var p = null, tasks = null, tray = null, start = null, spacer = null, desk = null;
+panels().forEach(function (pp) {
+    pp.widgets().forEach(function (w) { if (w.type == "org.kde.plasma.icontasks" && !p) p = pp; });
+});
+if (p) p.widgets().forEach(function (w) {
+    if (w.type == "org.kde.plasma.icontasks") tasks = w;
+    else if (w.type == "org.kde.windowsmodern.systemtray") tray = w;
+    else if (w.type == "org.kde.windowsmodern.startmenu") start = w;
+    else if (w.type == "org.kde.windowsmodern.showdesktop") desk = w;
+    else if (w.type == "org.kde.plasma.panelspacer" && !spacer && w.index == 0) spacer = w;
+});
+function cfg(w, k) { if (!w) return ""; w.currentConfigGroup = ["General"]; return w.readConfig(k); }
+function set(w, k, v) { if (!w) return; w.currentConfigGroup = ["General"]; w.writeConfig(k, v); w.reloadConfig(); }
+'''
+
+
+def plasma(script):
+    out = subprocess.run(['qdbus-qt6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.evaluateScript',
+                          PRELUDE + script], capture_output=True, text=True)
+    return out.stdout.strip()
+
+
+def read_state():
+    out = plasma(r'''
+    if (!p) { print("{}"); } else {
+    var list = function (v) { return (v === "" || v === undefined) ? [] : String(v).split(","); };
+    print(JSON.stringify({
+        height: p.height, hiding: p.hiding, opacity: p.opacity,
+        left: !!spacer && String(cfg(spacer, "expanding")) == "false",
+        showDesktop: !!desk,
+        grouping: String(cfg(tasks, "groupingStrategy")) != "0",
+        badges: String(cfg(tasks, "smartLaunchersEnabled")) != "false",
+        shown: list(cfg(tray, "shownItems")),
+        order: list(cfg(tray, "itemOrder")),
+        extra: list(cfg(tray, "extraItems"))
+    })); }''')
+    try:
+        return json.loads(out)
+    except ValueError:
+        return {}
+
+
+# ── nomes e ícones dos itens da bandeja ──────────────────────────────────
+def plugin_info(pid):
+    for base in (os.path.expanduser('~/.local/share/plasma/plasmoids'), '/usr/share/plasma/plasmoids'):
+        f = os.path.join(base, pid, 'metadata.json')
+        if os.path.isfile(f):
+            try:
+                k = json.load(open(f)).get('KPlugin', {})
+                return k.get('Name[pt_BR]') or k.get('Name') or pid, k.get('Icon') or 'preferences-system'
+            except (OSError, ValueError):
+                break
+    # applets compilados (.so) não têm metadata.json no disco: nomes conhecidos
+    known = {
+        'org.kde.plasma.battery': ('Bateria', 'battery-full'),
+        'org.kde.plasma.volume': ('Volume', 'audio-volume-high'),
+        'org.kde.plasma.networkmanagement': ('Rede', 'network-wireless'),
+        'org.kde.plasma.bluetooth': ('Bluetooth', 'preferences-system-bluetooth'),
+        'org.kde.plasma.clipboard': ('Área de transferência', 'edit-paste'),
+        'org.kde.plasma.devicenotifier': ('Dispositivos removíveis', 'device-notifier'),
+        'org.kde.plasma.notifications': ('Notificações', 'notifications'),
+        'org.kde.plasma.mediacontroller': ('Reprodutor de mídia', 'media-playback-start'),
+        'org.kde.plasma.brightness': ('Brilho e cor', 'brightness-high'),
+        'org.kde.plasma.keyboardlayout': ('Layout do teclado', 'input-keyboard'),
+        'org.kde.plasma.keyboardindicator': ('Caps Lock / Num Lock', 'input-caps-on'),
+        'org.kde.plasma.printmanager': ('Impressoras', 'printer'),
+        'org.kde.plasma.vault': ('Cofres', 'plasmavault'),
+        'org.kde.kdeconnect': ('KDE Connect', 'kdeconnect'),
+        'org.kde.plasma.weather': ('Clima', 'weather-clear'),
+        'org.kde.kscreen': ('Telas', 'preferences-desktop-display'),
+        'org.kde.plasma.manage-inputmethod': ('Método de entrada', 'input-keyboard'),
+        'org.kde.plasma.cameraindicator': ('Câmera em uso', 'camera-web'),
+    }
+    return known.get(pid, (pid.split('.')[-1].capitalize(), 'preferences-system'))
+
+
+def sni_info(item_id):
+    # ids de apps: "Claude_status_icon_1", "Easy Effects", "Notificador do Discover_org.kde.DiscoverNotifier"
+    name = re.sub(r'_status_icon_\d+$', '', item_id)
+    name = name.split('_')[0] if '_' in name else name
+    guess = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    for icon in (guess, guess.replace('-', ''), 'application-x-executable'):
+        if QIcon.hasThemeIcon(icon):
+            return name, icon
+    return name, 'application-x-executable'
+
+
+# ── visual no estilo das Configurações do Windows 11 ────────────────────
+class Toggle(QWidget):
+    toggled = Signal(bool)
+
+    def __init__(self, checked=False):
+        super().__init__()
+        self._on = checked
+        self._pos = 1.0 if checked else 0.0
+        self.setFixedSize(40, 20)
+        self.setCursor(Qt.PointingHandCursor)
+        self._anim = QPropertyAnimation(self, b'pos', self)
+        self._anim.setDuration(120)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+
+    def isChecked(self):
+        return self._on
+
+    def setChecked(self, on, emit=False):
+        if on == self._on:
+            return
+        self._on = on
+        self._anim.stop()
+        self._anim.setEndValue(1.0 if on else 0.0)
+        self._anim.start()
+        if emit:
+            self.toggled.emit(on)
+
+    def mousePressEvent(self, e):
+        if self.isEnabled():
+            self.setChecked(not self._on, emit=True)
+
+    def getPos(self):
+        return self._pos
+
+    def setPos(self, v):
+        self._pos = v
+        self.update()
+
+    pos = Property(float, getPos, setPos)
+
+    def paintEvent(self, e):
+        pal = self.palette()
+        accent = pal.color(QPalette.Highlight)
+        text = pal.color(QPalette.WindowText)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
+        if self._on:
+            p.setPen(Qt.NoPen)
+            p.setBrush(accent if self.isEnabled() else text.darker(200))
+        else:
+            p.setPen(text if self.isEnabled() else text.darker(200))
+            p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        d = 12 if self._on else 10
+        x = 5 + self._pos * (self.width() - 10 - 12) + (12 - d) / 2
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor('#000000') if self._on else text)
+        p.drawEllipse(QRectF(x, (self.height() - d) / 2, d, d))
+
+
+class Card(QFrame):
+    """Bloco arredondado com título, descrição e o controle à direita."""
+
+    def __init__(self, title, subtitle='', control=None, icon=None):
+        super().__init__()
+        self.setObjectName('card')
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setSpacing(14)
+        if icon:
+            ic = QLabel()
+            ic.setPixmap(QIcon.fromTheme(icon).pixmap(24, 24))
+            lay.addWidget(ic)
+        txt = QVBoxLayout()
+        txt.setSpacing(1)
+        t = QLabel(title)
+        t.setWordWrap(True)
+        txt.addWidget(t)
+        if subtitle:
+            s = QLabel(subtitle)
+            s.setObjectName('sub')
+            s.setWordWrap(True)
+            txt.addWidget(s)
+        lay.addLayout(txt, 1)
+        if control is not None:
+            lay.addWidget(control, 0, Qt.AlignVCenter)
+
+
+def heading(text):
+    l = QLabel(text)
+    l.setObjectName('heading')
+    return l
+
+
+class Window(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(TITLE)
+        self.setWindowIcon(QIcon.fromTheme('preferences-system-windows-behavior'))
+        self.resize(760, 820)
+        self.st = read_state()
+        if not self.st:
+            QLabel('Não achei o painel com a barra de tarefas.', self)
+            return
+
+        page = QWidget()
+        col = QVBoxLayout(page)
+        col.setContentsMargins(36, 24, 36, 36)
+        col.setSpacing(4)
+
+        crumb = QLabel('Personalização  ›  <b>Barra de tarefas</b>')
+        crumb.setObjectName('title')
+        col.addWidget(crumb)
+        col.addSpacing(16)
+
+        # ── Comportamentos ──────────────────────────────────────────────
+        col.addWidget(heading('Comportamentos da barra de tarefas'))
+
+        self.align = QComboBox()
+        self.align.addItems(['Centro', 'Esquerda'])
+        self.align.setCurrentIndex(1 if self.st['left'] else 0)
+        self.align.currentIndexChanged.connect(self.set_align)
+        col.addWidget(Card('Alinhamento da barra de tarefas', control=self.align))
+
+        t = Toggle(self.st['hiding'] == 'autohide')
+        t.toggled.connect(lambda on: plasma(f'p.hiding = "{"autohide" if on else "none"}";'))
+        col.addWidget(Card('Ocultar automaticamente a barra de tarefas', control=t))
+
+        self.small = Toggle(self.st['height'] <= SMALL)
+        self.small.toggled.connect(lambda on: self.set_height(SMALL if on else NORMAL))
+        col.addWidget(Card('Usar botões pequenos na barra de tarefas',
+                           'Deixa a barra mais fina, com ícones menores', self.small))
+
+        self.height_slider = QSlider(Qt.Horizontal)
+        self.height_slider.setRange(28, 64)
+        self.height_slider.setValue(self.st['height'])
+        self.height_slider.setFixedWidth(200)
+        self.height_label = QLabel()
+        self.height_label.setMinimumWidth(44)
+        box = QWidget()
+        hb = QHBoxLayout(box)
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.addWidget(self.height_slider)
+        hb.addWidget(self.height_label)
+        self._height_timer = QTimer(self, singleShot=True, interval=250)
+        self._height_timer.timeout.connect(lambda: self.set_height(self.height_slider.value(), from_slider=True))
+        self.height_slider.valueChanged.connect(self.height_moved)
+        self.height_moved(self.st['height'], apply=False)
+        col.addWidget(Card('Altura da barra de tarefas', 'Ajuste fino da espessura (padrão: 48 px)', box))
+
+        t = Toggle(self.st['badges'])
+        t.toggled.connect(lambda on: plasma(f'set(tasks, "smartLaunchersEnabled", {str(on).lower()});'))
+        col.addWidget(Card('Mostrar indicadores (contadores) nos aplicativos da barra de tarefas',
+                           'Por exemplo, o número de mensagens não lidas', t))
+
+        t = Toggle(self.st['grouping'])
+        t.toggled.connect(lambda on: plasma(f'set(tasks, "groupingStrategy", {1 if on else 0});'))
+        col.addWidget(Card('Combinar botões da barra de tarefas',
+                           'Várias janelas do mesmo aplicativo ficam num botão só', t))
+
+        t = Toggle(self.st['showDesktop'])
+        t.toggled.connect(self.set_show_desktop)
+        col.addWidget(Card('Selecionar o canto mais distante da barra de tarefas para mostrar a área de trabalho',
+                           control=t))
+
+        t = Toggle(self.st['opacity'] != 'opaque')
+        t.toggled.connect(lambda on: plasma(f'p.opacity = "{"translucent" if on else "opaque"}";'))
+        col.addWidget(Card('Efeitos de transparência', 'Barra translúcida com desfoque (acrílico)', t))
+
+        # ── Outros ícones da bandeja ────────────────────────────────────
+        col.addSpacing(18)
+        col.addWidget(heading('Ícones da bandeja'))
+        # seção recolhível, fechada de início, como "Outros ícones da bandeja" no Windows
+        tray_box = QWidget()
+        tray_col = QVBoxLayout(tray_box)
+        tray_col.setContentsMargins(0, 0, 0, 0)
+        tray_col.setSpacing(4)
+        tray_box.setVisible(False)
+        chevron = QLabel('⌄')
+        chevron.setStyleSheet('font-size: 14pt;')
+        expander = Card('Outros ícones da bandeja',
+                        'Ligado: o ícone fica sempre na barra. Desligado: vai para o menu ^ quando não precisa de atenção.',
+                        chevron, 'view-more-symbolic')
+        expander.setCursor(Qt.PointingHandCursor)
+
+        def toggle_tray(_event):
+            tray_box.setVisible(not tray_box.isVisible())
+            chevron.setText('⌃' if tray_box.isVisible() else '⌄')
+        expander.mousePressEvent = toggle_tray
+        col.addWidget(expander)
+        col.addWidget(tray_box)
+        self.shown = list(self.st['shown'])
+        seen = []
+        for item in self.st['order'] + self.st['shown'] + self.st['extra']:
+            if item in seen or item == 'org.kde.plasma.notifications':
+                continue
+            seen.append(item)
+        items = []
+        for item in seen:
+            name, icon = plugin_info(item) if item.startswith('org.kde.') else sni_info(item)
+            key = unicodedata.normalize('NFKD', name.lower()).encode('ascii', 'ignore')
+            items.append((key, name, icon, item))
+        for _, name, icon, item in sorted(items):
+            t = Toggle(item in self.shown)
+            t.toggled.connect(lambda on, it=item: self.set_tray_item(it, on))
+            card = Card(name, control=t, icon=icon)
+            card.setContentsMargins(24, 0, 0, 0)
+            tray_col.addWidget(card)
+
+        col.addSpacing(18)
+        col.addWidget(heading('Relacionado'))
+        btn = QPushButton('Abrir')
+        btn.clicked.connect(lambda: subprocess.Popen(['icones-painel']))
+        col.addWidget(Card('Ícones do painel', 'Trocar os desenhos dos ícones da bandeja', btn, 'preferences-desktop-icons'))
+        col.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(page)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(scroll)
+        QTimer.singleShot(0, lambda: scroll.verticalScrollBar().setValue(0))
+
+        pal = self.palette()
+        base = pal.color(QPalette.Window)
+        card = base.lighter(125) if base.lightness() < 128 else base.darker(104)
+        line = pal.color(QPalette.WindowText)
+        line.setAlpha(22)
+        sub_color = pal.color(QPalette.WindowText)
+        sub_color.setAlpha(150)
+        self.setStyleSheet(f'''
+            QFrame#card {{ background: {card.name()}; border: 1px solid rgba({line.red()},{line.green()},{line.blue()},{line.alpha()});
+                           border-radius: 6px; }}
+            QLabel#sub {{ color: rgba({sub_color.red()},{sub_color.green()},{sub_color.blue()},{sub_color.alpha()}); font-size: 9pt; }}
+            QLabel#heading {{ font-weight: 600; padding: 8px 2px 4px 2px; }}
+            QLabel#title {{ font-size: 20pt; }}
+        ''')
+
+    # ── ações ────────────────────────────────────────────────────────────
+    def set_align(self, i):
+        left = i == 1
+        # esquerda: o espaçador da ponta para de crescer (sobra só uma margem);
+        # o Iniciar passa a abrir no canto, como no Windows
+        plasma(f'''set(spacer, "length", 8); set(spacer, "expanding", {str(not left).lower()});
+                   set(start, "displayPosition", {3 if left else 2});''')
+
+    def set_height(self, h, from_slider=False):
+        plasma(f'p.height = {int(h)};')
+        if not from_slider:
+            self.height_slider.blockSignals(True)
+            self.height_slider.setValue(h)
+            self.height_slider.blockSignals(False)
+            self.height_moved(h, apply=False)
+
+    def height_moved(self, v, apply=True):
+        self.height_label.setText(f'{v} px')
+        self.small.setChecked(v <= SMALL)
+        if apply:
+            self._height_timer.start()
+
+    def set_show_desktop(self, on):
+        if on:
+            plasma('if (!desk) p.addWidget("org.kde.windowsmodern.showdesktop");')
+        else:
+            plasma('if (desk) desk.remove();')
+
+    def set_tray_item(self, item, on):
+        if on and item not in self.shown:
+            self.shown.append(item)
+        elif not on and item in self.shown:
+            self.shown.remove(item)
+        plasma(f'set(tray, "shownItems", {json.dumps(self.shown)});')
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    app.setApplicationName('barra-de-tarefas')
+    app.setDesktopFileName('barra-de-tarefas')
+    w = Window()
+    w.show()
+    sys.exit(app.exec())

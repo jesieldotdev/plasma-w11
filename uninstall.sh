@@ -26,6 +26,7 @@ if [ "$PURGE" = 1 ]; then
     rm -rf "$THEMES/Windows-11-dark" "$ICONS/Windows-11-Fluent" "$ICONS/Windows-11-Custom" \
            "$ICONS/Windows-11-cursors" "$HOME/.local/share/sounds/Windows-11" \
            "$BIN/icones-painel" "$HOME/.local/share/applications/icones-painel.desktop" \
+           "$BIN/barra-de-tarefas" "$HOME/.local/share/applications/barra-de-tarefas.desktop" \
            "$HOME/.config/wireplumber/wireplumber.conf.d/60-sons-do-sistema.conf"
     systemctl --user restart wireplumber.service 2>/dev/null || true
     find "$LOCALE_DIR" -name 'plasma_applet_org.kde.windowsmodern.*.mo' -delete 2>/dev/null || true

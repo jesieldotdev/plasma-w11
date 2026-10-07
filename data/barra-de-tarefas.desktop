@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Configurações da barra de tarefas
+Comment=Alinhamento, altura, ocultar automaticamente e ícones da bandeja
+Exec=@BIN@/barra-de-tarefas
+Icon=preferences-system-windows-behavior
+Categories=Settings;DesktopSettings;
+Keywords=painel;barra;taskbar;bandeja;

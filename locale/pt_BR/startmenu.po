@@ -210,3 +210,6 @@ msgstr "Abrir local do arquivo"
 
 msgid "Open program location"
 msgstr "Abrir local do programa"
+
+msgid "Taskbar settings"
+msgstr "Configurações da barra de tarefas"

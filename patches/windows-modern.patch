@@ -2004,6 +2004,38 @@ index 89fc857..0000000
 -        }
 -    }
 -}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/main.qml
+index a887999..197708f 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/main.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/main.qml
+@@ -11,6 +11,7 @@ import org.kde.plasma.plasmoid
+ import org.kde.plasma.core as PlasmaCore
+ 
+ import org.kde.plasma.private.kicker 0.1 as Kicker
++import org.kde.plasma.plasma5support as Plasma5Support
+ 
+ PlasmoidItem {
+ 
+@@ -137,7 +138,19 @@ PlasmoidItem {
+         id: processRunner
+     }
+ 
++    Plasma5Support.DataSource {
++        id: launcher
++        engine: "executable"
++        onNewData: source => disconnectSource(source)
++    }
++
+     Plasmoid.contextualActions: [
++        // como no Windows: botão direito no Iniciar/barra -> configurações da barra
++        PlasmaCore.Action {
++            text: i18n("Taskbar settings")
++            icon.name: "preferences-system-windows-behavior"
++            onTriggered: launcher.connectSource("barra-de-tarefas || $HOME/.local/bin/barra-de-tarefas")
++        },
+         PlasmaCore.Action {
+             text: i18n("Edit Applications…")
+             icon.name: "kmenuedit"
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
 deleted file mode 100644
 index 22eeace..0000000
