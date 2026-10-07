@@ -77,6 +77,22 @@ index e8cb979..5709acb 100644
              verticalAlignment: Text.AlignVCenter
              textFormat: Text.PlainText
  
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml
+index b0553fc..9ea9b51 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/config/main.xml
+@@ -76,6 +76,11 @@
+       <default>home,documents,pictures,music,downloads,recent,thispc,update,terminal,run</default>
+     </entry>
+ 
++    <!-- pastas ao lado do botão de energia, no rodapé -->
++    <entry name="footerFolders" type="StringList">
++      <default>documents,downloads,settings,explorer</default>
++    </entry>
++
+     <entry name="menuTranslucency" type="Int">
+       <default>0</default>
+     </entry>
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/CompactRepresentation.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/CompactRepresentation.qml
 index f731420..6fc2e72 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/CompactRepresentation.qml
@@ -91,33 +107,83 @@ index f731420..6fc2e72 100644
      }
  
      MouseArea {
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/ConfigGeneral.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/ConfigGeneral.qml
+index 30a7506..cd8b7b3 100644
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/ConfigGeneral.qml
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/ConfigGeneral.qml
+@@ -22,7 +22,6 @@ KCM.SimpleKCM {
+     property bool cfg_useCustomButtonImage: Plasmoid.configuration.useCustomButtonImage
+     property string cfg_customButtonImage: Plasmoid.configuration.customButtonImage
+     property alias cfg_displayPosition: displayPosition.currentIndex
+-    property alias cfg_showRightColumn: showRightColumn.checked
+     property alias cfg_allAppsSortMode: allAppsSortMode.currentIndex
+     property alias cfg_menuTranslucency: menuTranslucency.currentIndex
+ 
+@@ -106,12 +105,6 @@ KCM.SimpleKCM {
+             ]
+         }
+ 
+-        // ── Show places column ─────────────────────────────────────────
+-        CheckBox {
+-            id: showRightColumn
+-            Kirigami.FormData.label: i18n("Show places column")
+-        }
+-
+         // ── All apps sort ──────────────────────────────────────────────
+         ComboBox {
+             Kirigami.FormData.label: i18n("All apps sort")
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
-index 93b62e2..97c44f6 100644
+index 93b62e2..d7fe5d7 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/MenuRepresentation.qml
-@@ -62,8 +62,19 @@ Item {
+@@ -2,14 +2,15 @@
+  *   License: GPL-3.0-or-later
+  *   Author: Jeysef
+  *
+- *   StartAllBack-style two-column start menu shell:
+- *     ┌──────────────────────────────┬─────────────────┐
+- *     │  Pinned / All apps (left)    │  User avatar    │
+- *     │                              ├─────────────────┤
+- *     │  vertical list of apps       │  System         │
+- *     │                              │  locations      │
+- *     ├──────────────────────────────┴─────────────────┤
+- *     │  [Search programs and files...]  [Shut down >] │
++ *   Iniciar no estilo do Windows 11 (versão 2025):
++ *     ┌────────────────────────────────────────────────┐
++ *     │  [ Pesquisar ...                            ]  │
++ *     │  Fixado                         Mostrar tudo > │
++ *     │  grade de favoritos                            │
++ *     │  Todos                            Categoria v  │
++ *     │  categorias / grade / lista   (tudo rola)      │
++ *     ├────────────────────────────────────────────────┤
++ *     │  (foto) Nome                     pastas    (⏻) │
+  *     └────────────────────────────────────────────────┘
+  *
+  *   Pages live in pages/, shared components in components/.
+@@ -60,10 +61,19 @@ Item {
+                          ? PlasmaCore.Dialog.SolidBackground
+                          : PlasmaCore.Dialog.StandardBackground
  
-         property bool searching: bottomBarContent.searchText !== ""
+-        property bool searching: bottomBarContent.searchText !== ""
++        property bool searching: searchBar.text !== ""
  
 -        // Left-column state: 0 = pinned, 1 = all apps, 2 = search results
 -        property int leftColumnState: 0
-+        // Left-column state: 0 = pinned, 1 = categorias/todos os apps (tela inicial), 2 = search results
++        // Página do corpo: 1 = início (Fixado + Todos), 2 = resultados da pesquisa
 +        property int leftColumnState: 1
-+        property int previousLeftColumnState: 1
 +
 +        onLeftColumnStateChanged: {
 +            if (visible) {
-+                // Fixado fica "à direita" das categorias; pesquisa sobe de baixo.
-+                pageShiftAnim.fromX = leftColumnState === 2 ? 0 : (leftColumnState === 0 ? 1 : -1) * Kirigami.Units.gridUnit * 2;
-+                pageShiftAnim.fromY = leftColumnState === 2 ? Kirigami.Units.gridUnit : 0;
++                // a pesquisa sobe de baixo; a volta ao início também
++                pageShiftAnim.fromX = 0;
++                pageShiftAnim.fromY = Kirigami.Units.gridUnit;
 +                pageShiftAnim.restart();
 +            }
-+            previousLeftColumnState = leftColumnState;
 +        }
  
          onSearchingChanged: {
              if (searching) {
-@@ -72,7 +83,7 @@ Item {
+@@ -72,7 +82,7 @@ Item {
                  searchPage.resultsView.contentY = 0;
                  searchPage.resultsView.currentIndex = 0;
              } else {
@@ -126,7 +192,7 @@ index 93b62e2..97c44f6 100644
              }
          }
  
-@@ -80,8 +91,9 @@ Item {
+@@ -80,8 +90,10 @@ Item {
              if (visible) {
                  reposition();
                  reset();
@@ -134,19 +200,27 @@ index 93b62e2..97c44f6 100644
              } else {
 -                leftColumnState = 0;
 +                leftColumnState = 1;
++                homePage.reset();
                  sharedContextMenu.close();
                  powerMenu.close();
              }
-@@ -101,7 +113,8 @@ Item {
+@@ -100,12 +112,13 @@ Item {
+         }
  
          function reset() {
-             bottomBarContent.searchText = "";
+-            bottomBarContent.searchText = "";
 -            leftColumnState = 0;
++            searchBar.text = "";
 +            leftColumnState = 1;
-+            allAppsPage.resetCategories();
++            homePage.reset();
              // Reset the search filter pills to "All".
              searchPage.resultsView.singleRunner = "";
              // Defer focus until the dialog has finished laying out.
+-            Qt.callLater(bottomBarContent.focusSearch);
++            Qt.callLater(searchBar.focusSearch);
+         }
+ 
+         function closeMenu() {
 @@ -118,6 +131,10 @@ Item {
              var horizMidPoint = screen.x + (screen.width / 2);
              var vertMidPoint = screen.y + (screen.height / 2);
@@ -193,10 +267,16 @@ index 93b62e2..97c44f6 100644
                  }
              }
          }
-@@ -162,6 +177,23 @@ Item {
+@@ -162,15 +177,31 @@ Item {
          FocusScope {
              id: rootItem
  
+-            readonly property int leftColumnWidth: Kirigami.Units.gridUnit * 14
+-            readonly property int rightColumnWidth: Kirigami.Units.gridUnit * 10
+-            // Height derived from ~10 list rows + header + padding rather
+-            // than a fixed grid-unit count.
+-            readonly property int rowHeight: Kirigami.Units.gridUnit * 2
+-            readonly property int mainContentHeight: rowHeight * 12 + Kirigami.Units.gridUnit * 2
 +            // Animação de abertura estilo Windows 11: sobe e aparece com
 +            // desaceleração. O KWin não anima diálogos "Floating".
 +            transform: Translate { id: openShift }
@@ -204,28 +284,368 @@ index 93b62e2..97c44f6 100644
 +                id: pageShiftAnim
 +                property real fromX: 0
 +                property real fromY: 0
-+                NumberAnimation { target: leftShift; property: "x"; from: pageShiftAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
-+                NumberAnimation { target: leftShift; property: "y"; from: pageShiftAnim.fromY; to: 0; duration: 200; easing.type: Easing.OutCubic }
-+                NumberAnimation { target: leftColumn; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++                NumberAnimation { target: bodyShift; property: "x"; from: pageShiftAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
++                NumberAnimation { target: bodyShift; property: "y"; from: pageShiftAnim.fromY; to: 0; duration: 200; easing.type: Easing.OutCubic }
++                NumberAnimation { target: body; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
 +            }
 +            ParallelAnimation {
 +                id: openAnimation
 +                NumberAnimation { target: openShift; property: "y"; from: Kirigami.Units.gridUnit * 3; to: 0; duration: 220; easing.type: Easing.OutCubic }
 +                NumberAnimation { target: rootItem; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
 +            }
+ 
+-            width: leftColumnWidth + rightColumnWidth + Kirigami.Units.gridUnit * 3
+-            height: mainContentHeight + bottomBar.height + Kirigami.Units.gridUnit * 3
++            // Medidas do Iniciar do Windows 11: 6 colunas de fixados, margens largas.
++            readonly property int sidePadding: Kirigami.Units.gridUnit * 2
++            readonly property int contentWidth: Kirigami.Units.gridUnit * 32
++            readonly property int bodyHeight: Kirigami.Units.gridUnit * 30
 +
-             readonly property int leftColumnWidth: Kirigami.Units.gridUnit * 14
-             readonly property int rightColumnWidth: Kirigami.Units.gridUnit * 10
-             // Height derived from ~10 list rows + header + padding rather
-@@ -238,6 +270,7 @@ Item {
-                 // ── Left column: pinned / all-apps / search ─────────────────
-                 ColumnLayout {
-                     id: leftColumn
-+                    transform: Translate { id: leftShift }
-                     Layout.fillWidth: true
-                     Layout.fillHeight: true
-                     Layout.preferredWidth: rootItem.leftColumnWidth
-@@ -508,6 +541,17 @@ Item {
++            width: contentWidth + sidePadding * 2
++            height: Math.min(searchArea.height + bodyHeight + footer.implicitHeight,
++                             kicker.screenGeometry.height - Kirigami.Units.gridUnit * 6)
+             focus: true
+ 
+             // Note: do NOT auto-redirect to the search field here.
+@@ -192,7 +223,6 @@ Item {
+                 }
+             }
+ 
+-            KCoreAddons.KUser { id: kuser }
+ 
+             KItemModels.KSortFilterProxyModel {
+                 id: sortedAppsModel
+@@ -222,181 +252,24 @@ Item {
+                 property var favoritesModel: sourceModel ? sourceModel.favoritesModel : null
+             }
+ 
+-            // ── Two-column main content area ──────────────────────────────
+-            RowLayout {
+-                id: mainColumns
++            // ── Pesquisa (topo) ────────────────────────────────────────────
++            Item {
++                id: searchArea
+                 anchors.top: parent.top
+                 anchors.left: parent.left
+                 anchors.right: parent.right
+-                anchors.bottom: bottomBar.top
+-                anchors.topMargin: Kirigami.Units.gridUnit
+-                anchors.bottomMargin: Kirigami.Units.gridUnit
+-                anchors.leftMargin: Kirigami.Units.gridUnit
+-                anchors.rightMargin: Kirigami.Units.gridUnit
+-                spacing: 0
+-
+-                // ── Left column: pinned / all-apps / search ─────────────────
+-                ColumnLayout {
+-                    id: leftColumn
+-                    Layout.fillWidth: true
+-                    Layout.fillHeight: true
+-                    Layout.preferredWidth: rootItem.leftColumnWidth
+-                    Layout.rightMargin: Kirigami.Units.mediumSpacing
+-                    spacing: Kirigami.Units.smallSpacing
+-
+-                    PinnedPage {
+-                        id: pinnedPage
+-                        Layout.fillWidth: true
+-                        Layout.fillHeight: true
+-                        visible: root.leftColumnState === 0
+-                        onShowAllAppsRequested: {
+-                            root.leftColumnState = 1;
+-                        }
+-                        onKeyNavUpFromList: bottomBarContent.focusSearch()
+-                    }
+-
+-                    AllAppsPage {
+-                        id: allAppsPage
+-                        Layout.fillWidth: true
+-                        Layout.fillHeight: true
+-                        visible: root.leftColumnState === 1
+-                        onBackRequested: {
+-                            root.leftColumnState = 0;
+-                        }
+-                        onKeyNavUpFromList: bottomBarContent.focusSearch()
+-                    }
+-
+-                    SearchPage {
+-                        id: searchPage
+-                        Layout.fillWidth: true
+-                        Layout.fillHeight: true
+-                        visible: root.leftColumnState === 2
+-                        onContextMenuRequested: function(actions, x, y, context) {
+-                            var pos = searchPage.mapToItem(sharedContextMenu, x, y)
+-                            sharedContextMenu.open(actions, pos.x, pos.y, context)
+-                        }
+-                    }
+-                }
++                height: searchBar.implicitHeight + Kirigami.Units.gridUnit * 2.4
+ 
+-                // ── Vertical separator ───────────────────────────────────────
+-                Rectangle {
+-                    id: columnSeparator
+-                    Layout.preferredWidth: 1
+-                    Layout.fillHeight: true
+-                    color: Kirigami.Theme.textColor
+-                    opacity: Theme.separatorOpacity
+-                }
+-
+-                // ── Right column: avatar + system locations ────────────────
+-                ColumnLayout {
+-                    id: rightColumn
+-                    Layout.fillWidth: true
+-                    Layout.fillHeight: true
+-                    Layout.preferredWidth: rootItem.rightColumnWidth
+-                    Layout.rightMargin: Kirigami.Units.mediumSpacing
+-                    spacing: Kirigami.Units.smallSpacing
+-                    visible: Plasmoid.configuration.showRightColumn
+-
+-                    // ── User avatar (circular) ──────────────────────────────
+-                    Item {
+-                        id: avatarArea
+-                        Layout.alignment: Qt.AlignHCenter
+-                        Layout.topMargin: Kirigami.Units.smallSpacing
+-                        Layout.bottomMargin: Kirigami.Units.smallSpacing
+-                        width: Kirigami.Units.iconSizes.medium
+-                        height: width
+-
+-                        Image {
+-                            id: userAvatar
+-                            anchors.fill: parent
+-                            source: {
+-                                var faceUrl = kuser.faceIconUrl.toString()
+-                                if (faceUrl !== "") return faceUrl
+-                                return "file:///usr/share/icons/breeze/apps/48/kuser.svg"
+-                            }
+-                            cache: false
+-                            fillMode: Image.PreserveAspectCrop
+-                            visible: source !== ""
+-                            layer.enabled: true
+-                            layer.effect: OpacityMask {
+-                                maskSource: Rectangle {
+-                                    width: avatarArea.width
+-                                    height: avatarArea.height
+-                                    radius: avatarArea.width / 2
+-                                }
+-                            }
+-                        }
+-
+-                        Rectangle {
+-                            anchors.fill: parent
+-                            radius: width / 2
+-                            color: "transparent"
+-                            border.width: 1
+-                            border.color: Qt.rgba(Kirigami.Theme.textColor.r,
+-                                                   Kirigami.Theme.textColor.g,
+-                                                   Kirigami.Theme.textColor.b, Theme.buttonBorderOpacity)
+-                        }
+-
+-                        MouseArea {
+-                            anchors.fill: parent
+-                            hoverEnabled: true
+-                            cursorShape: Qt.PointingHandCursor
+-                            onClicked: executable.exec("systemsettings kcm_users")
+-                        }
+-                    }
+-
+-                    PlasmaComponents3.Label {
+-                        text: i18n("Places")
+-                        color: Kirigami.Theme.textColor
+-                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.95
+-                        font.weight: Font.DemiBold
+-                        Layout.leftMargin: Kirigami.Units.largeSpacing
+-                    }
+-
+-                    SystemLocationsColumn {
+-                        id: systemLocations
+-                        Layout.fillWidth: true
+-                        Layout.fillHeight: true
+-                        executable: executable
+-                    }
+-                }
+-            }
+-
+-            // ── Compound bottom bar: [Search field] + [Shut down >] ────────
+-            Rectangle {
+-                id: bottomBar
+-                width: parent.width
+-                height: bottomBarContent.implicitHeight + Kirigami.Units.gridUnit
+-                anchors.bottom: parent.bottom
+-                anchors.bottomMargin: Kirigami.Units.gridUnit
+-                anchors.left: parent.left
+-                anchors.leftMargin: Kirigami.Units.gridUnit
+-                anchors.right: parent.right
+-                anchors.rightMargin: Kirigami.Units.gridUnit
+-                Kirigami.Theme.colorSet: Kirigami.Theme.Header
+-                Kirigami.Theme.inherit: false
+-                color: "transparent"
+-
+-                Rectangle {
+-                    anchors.top: parent.top
+-                    width: parent.width
+-                    height: 1
+-                    color: Kirigami.Theme.textColor
+-                    opacity: Theme.separatorOpacity
+-                }
+-
+-                BottomBar {
+-                    id: bottomBarContent
++                SearchBar {
++                    id: searchBar
+                     anchors.left: parent.left
+                     anchors.right: parent.right
++                    anchors.leftMargin: rootItem.sidePadding
++                    anchors.rightMargin: rootItem.sidePadding
+                     anchors.verticalCenter: parent.verticalCenter
+ 
+-                    onSearchTextChanged: {
+-                        // Explicitly push the query to Milou ResultsView.
+-                        searchPage.resultsView.queryString = bottomBarContent.searchText;
+-                        // Reset scroll to top on new query — only when
+-                        // the search page is active to avoid warnings
+-                        // from setting properties on a non-visible view.
++                    onTextChanged: {
++                        searchPage.resultsView.queryString = text;
+                         if (root.leftColumnState === 2) {
+                             searchPage.resultsView.contentY = 0;
+                             searchPage.resultsView.currentIndex = 0;
+@@ -404,31 +277,68 @@ Item {
+                     }
+                     onSearchFocusResults: rootItem.focusActivePageResults()
+                     onSearchNavUp: {
+-                        if (root.leftColumnState === 0) pinnedPage.navigateUp();
+-                        else if (root.leftColumnState === 1) allAppsPage.navigateUp();
+-                        else if (root.leftColumnState === 2) searchPage.navigateUp();
++                        if (root.leftColumnState === 2) searchPage.navigateUp();
++                        else homePage.navigateUp();
+                     }
+                     onSearchNavDown: {
+-                        if (root.leftColumnState === 0) pinnedPage.navigateDown();
+-                        else if (root.leftColumnState === 1) allAppsPage.navigateDown();
+-                        else if (root.leftColumnState === 2) searchPage.navigateDown();
+-                    }
+-                    onSearchActivateFirstResult: {
+-                        rootItem.activateCurrentItem();
++                        if (root.leftColumnState === 2) searchPage.navigateDown();
++                        else homePage.navigateDown();
+                     }
++                    onSearchActivateFirstResult: rootItem.activateCurrentItem()
+                     onSearchEscapePressed: {
+-                        if (bottomBarContent.searchText !== "") {
+-                            bottomBarContent.searchText = "";
++                        if (text !== "") {
++                            text = "";
++                        } else if (homePage.showingCategory) {
++                            homePage.closeCategory();
+                         } else {
+                             root.closeMenu();
+                         }
+                     }
+-                    onTabOut: rootItem.focusActivePageResults()
+-                    onPowerMenuRequested: {
+-                        powerMenu.visualParent = bottomBarContent.splitButton;
+-                        powerMenu.open();
++                }
++            }
++
++            // ── Corpo: início ou resultados da pesquisa ──────────────────────
++            Item {
++                id: body
++                anchors.top: searchArea.bottom
++                anchors.bottom: footer.top
++                anchors.left: parent.left
++                anchors.right: parent.right
++                anchors.leftMargin: rootItem.sidePadding - Kirigami.Units.largeSpacing
++                anchors.rightMargin: rootItem.sidePadding - Kirigami.Units.largeSpacing
++                transform: Translate { id: bodyShift }
++
++                HomePage {
++                    id: homePage
++                    anchors.fill: parent
++                    visible: root.leftColumnState === 1
++                    onKeyNavUpFromList: searchBar.focusSearch()
++                }
++
++                SearchPage {
++                    id: searchPage
++                    anchors.fill: parent
++                    anchors.leftMargin: Kirigami.Units.largeSpacing
++                    anchors.rightMargin: Kirigami.Units.largeSpacing
++                    visible: root.leftColumnState === 2
++                    onContextMenuRequested: function(actions, x, y, context) {
++                        var pos = searchPage.mapToItem(sharedContextMenu, x, y)
++                        sharedContextMenu.open(actions, pos.x, pos.y, context)
+                     }
+-                    onPowerShutdownRequested: powerMenu.triggerShutdown()
++                }
++            }
++
++            // ── Rodapé: conta, pastas, energia ─────────────────────────────
++            StartFooter {
++                id: footer
++                anchors.bottom: parent.bottom
++                anchors.left: parent.left
++                anchors.right: parent.right
++                height: implicitHeight
++                executable: executable
++                onPowerMenuRequested: {
++                    powerMenu.visualParent = footer.powerButton;
++                    powerMenu.open();
+                 }
+             }
+ 
+@@ -437,7 +347,7 @@ Item {
+                 id: powerMenu
+                 anchors.fill: parent
+                 onClosed: {
+-                    bottomBarContent.focusSearch();
++                    searchBar.focusSearch();
+                 }
+             }
+ 
+@@ -451,6 +361,14 @@ Item {
+             }
+ 
+             function handleContextAction(actionId, argument, context) {
++                if (actionId === "_start_view_mode") {
++                    homePage.setViewMode(argument.mode);
++                    return;
++                }
++                if (actionId === "_start_move_front") {
++                    globalFavorites.moveRow(argument.index, 0);
++                    return;
++                }
+                 // Milou runner actions: invoke the named action on the
+                 // current match via ResultsView.runAction().
+                 if (actionId === "_milou_runner_action" && context && context.kind === "milou") {
+@@ -480,22 +398,18 @@ Item {
+             }
+ 
+             function focusActivePageResults() {
+-                if (root.leftColumnState === 0) {
+-                    pinnedPage.tryActivate(0);
+-                } else if (root.leftColumnState === 1) {
+-                    allAppsPage.tryActivate(0);
+-                } else {
++                if (root.leftColumnState === 2) {
+                     searchPage.tryActivate(0, 0);
++                } else {
++                    homePage.tryActivate();
+                 }
+             }
+ 
+             function activateCurrentItem() {
+-                if (root.leftColumnState === 0) {
+-                    pinnedPage.activateCurrent();
+-                } else if (root.leftColumnState === 1) {
+-                    allAppsPage.activateCurrent();
+-                } else if (root.leftColumnState === 2) {
++                if (root.leftColumnState === 2) {
+                     searchPage.activateCurrent();
++                } else {
++                    homePage.activateCurrent();
+                 }
+             }
+ 
+@@ -508,6 +422,17 @@ Item {
  
              // Rebuild the lookup map when the source model changes.
              // Returns { favoriteId, url, actionList } or null.
@@ -243,271 +663,1918 @@ index 93b62e2..97c44f6 100644
              function lookupAppByDisplayName(displayName) {
                  if (!displayName) return null;
                  return rootItem._appLookupMap[displayName] || null;
-@@ -581,8 +625,10 @@ Item {
+@@ -581,9 +506,9 @@ Item {
                      event.accepted = true;
                      if (root.searching) {
                          reset();
 -                    } else if (root.leftColumnState === 1) {
 -                        root.leftColumnState = 0;
-+                    } else if (root.leftColumnState === 1 && !allAppsPage.showingCategories) {
-+                        allAppsPage.resetCategories();
-+                    } else if (root.leftColumnState === 0) {
-+                        root.leftColumnState = 1;
-                         bottomBarContent.focusSearch();
+-                        bottomBarContent.focusSearch();
++                    } else if (homePage.showingCategory) {
++                        homePage.closeCategory();
++                        searchBar.focusSearch();
                      } else {
                          root.closeMenu();
-@@ -626,6 +672,11 @@ Item {
-             pinnedPage.favoritesList.model = globalFavorites;
+                     }
+@@ -593,7 +518,7 @@ Item {
+                 // Backspace from a list: delete last search char.
+                 if (event.key === Qt.Key_Backspace) {
+                     event.accepted = true;
+-                    bottomBarContent.searchText = bottomBarContent.searchText.slice(0, -1);
++                    searchBar.text = searchBar.text.slice(0, -1);
+                     return;
+                 }
+ 
+@@ -617,15 +542,17 @@ Item {
+                 if (event.text !== "" && event.text !== "\t"
+                         && !(event.modifiers & Qt.ControlModifier)) {
+                     event.accepted = true;
+-                    bottomBarContent.searchText = bottomBarContent.searchText + event.text;
++                    searchBar.text = searchBar.text + event.text;
+                 }
+             }
+         }
+ 
+         function setModels() {
+-            pinnedPage.favoritesList.model = globalFavorites;
              sortedAppsModel.sourceModel = findRowModel(rootModel, "KICKER_ALL_MODEL");
-             allAppsPage.allAppsList.model = sortedAppsModel;
-+            allAppsPage.appsRootModel = rootModel;
-+            allAppsPage.proxyModel = sortedAppsModel;
-+            allAppsPage.allModel = sortedAppsModel.sourceModel;
-+            allAppsPage.categoryRow = -2;
-+            allAppsPage.rebuildCategories();
+-            allAppsPage.allAppsList.model = sortedAppsModel;
++            homePage.favoritesModel = globalFavorites;
++            homePage.appsModel = sortedAppsModel;
++            homePage.appsRootModel = rootModel;
++            homePage.rebuildCategories();
          }
  
          // Locate a rootModel child row by its description.  The Kicker
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AToolButton.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AToolButton.qml
+deleted file mode 100644
+index 81453b6..0000000
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AToolButton.qml
++++ /dev/null
+@@ -1,91 +0,0 @@
+-/***************************************************************************
+- *   License: GPL-3.0-or-later
+- *   Author: Jeysef
+- *
+- *   Flat/link-style button with icon and text, used for "All apps", "Back".
+- *   Styling matches menu.11.next — rounded, subtle border, clean hover.
+- ***************************************************************************/
+-
+-import QtQuick
+-import QtQuick.Controls
+-import QtQuick.Layouts
+-
+-import org.kde.kirigami as Kirigami
+-
+-import "../code/theme.js" as Theme
+-
+-Rectangle {
+-    id: item
+-
+-    property int buttonHeight: Math.floor(Kirigami.Units.gridUnit * 2)
+-    implicitHeight: buttonHeight
+-    implicitWidth: row.implicitWidth + (Kirigami.Units.mediumSpacing * 2)
+-
+-    border.width: 1
+-    border.color: Qt.rgba(Kirigami.Theme.textColor.r,
+-                           Kirigami.Theme.textColor.g,
+-                           Kirigami.Theme.textColor.b, Theme.buttonBorderOpacity)
+-
+-    radius: Kirigami.Units.smallSpacing
+-    color: {
+-        var hover = Qt.rgba(Kirigami.Theme.textColor.r,
+-                            Kirigami.Theme.textColor.g,
+-                            Kirigami.Theme.textColor.b, Theme.buttonHoverOpacity);
+-        if (flat) {
+-            return mouseItem.containsMouse
+-                   ? Qt.rgba(Kirigami.Theme.textColor.r,
+-                              Kirigami.Theme.textColor.g,
+-                              Kirigami.Theme.textColor.b, Theme.buttonFlatHoverOpacity)
+-                   : Qt.rgba(Kirigami.Theme.textColor.r,
+-                              Kirigami.Theme.textColor.g,
+-                              Kirigami.Theme.textColor.b, Theme.buttonFlatBackgroundOpacity);
+-        }
+-        return mouseItem.containsMouse ? hover : Kirigami.Theme.backgroundColor;
+-    }
+-
+-    Behavior on color { ColorAnimation { duration: 90 } }
+-
+-    smooth: true
+-    focus: true
+-
+-    property alias text: lb.text
+-    property bool flat: false
+-    property alias iconName: icon.source
+-    property bool mirror: false
+-
+-    signal clicked
+-
+-    Keys.onSpacePressed: item.clicked()
+-
+-    RowLayout {
+-        id: row
+-        anchors.fill: parent
+-        anchors.margins: Kirigami.Units.smallSpacing
+-        anchors.topMargin: Kirigami.Units.smallSpacing / 2
+-        anchors.bottomMargin: Kirigami.Units.smallSpacing / 2
+-        spacing: Kirigami.Units.smallSpacing
+-        LayoutMirroring.enabled: mirror
+-
+-        Label {
+-            id: lb
+-            color: Kirigami.Theme.textColor
+-            Layout.leftMargin: Kirigami.Units.smallSpacing
+-            Layout.fillWidth: true
+-        }
+-
+-        Kirigami.Icon {
+-            id: icon
+-            implicitHeight: Kirigami.Units.gridUnit
+-            implicitWidth: implicitHeight
+-            smooth: true
+-        }
+-    }
+-
+-    MouseArea {
+-        id: mouseItem
+-        hoverEnabled: true
+-        anchors.fill: parent
+-        cursorShape: Qt.PointingHandCursor
+-        onClicked: item.clicked()
+-    }
+-}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AppTile.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AppTile.qml
+new file mode 100644
+index 0000000..f3c2b3e
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/AppTile.qml
+@@ -0,0 +1,125 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Bloco de app do Iniciar do Windows 11 (Fixado e grade de "Todos"):
++ *   ícone em cima, nome embaixo (até duas linhas), fundo arredondado no
++ *   hover.  Clique abre, botão direito abre o menu de contexto compartilhado.
++ *   Funciona em qualquer GridView cujo model tenha trigger(row, id, arg).
++ ***************************************************************************/
++
++import QtQuick
++
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++
++import "../code/tools.js" as Tools
++import "../code/theme.js" as Theme
++
++Item {
++    id: tile
++
++    width: GridView.view ? GridView.view.cellWidth : Kirigami.Units.gridUnit * 5
++    height: GridView.view ? GridView.view.cellHeight : Kirigami.Units.gridUnit * 5
++
++    enabled: !model.disabled
++
++    property int itemIndex: model.index
++    property int iconSize: Kirigami.Units.iconSizes.medium
++
++    Accessible.role: Accessible.MenuItem
++    Accessible.name: label.text
++
++    Rectangle {
++        anchors.fill: parent
++        anchors.margins: Kirigami.Units.smallSpacing / 2
++        radius: Kirigami.Units.smallSpacing
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
++                       Kirigami.Theme.textColor.b, mouseArea.pressed ? 0.04 : 0.07)
++        border.width: tile.GridView.isCurrentItem && tile.GridView.view.activeFocus ? 2 : 0
++        border.color: Kirigami.Theme.textColor
++        opacity: mouseArea.containsMouse || (tile.GridView.isCurrentItem && tile.GridView.view.activeFocus) ? 1 : 0
++        Behavior on opacity { NumberAnimation { duration: 90 } }
++    }
++
++    Kirigami.Icon {
++        id: icon
++        anchors.horizontalCenter: parent.horizontalCenter
++        anchors.top: parent.top
++        anchors.topMargin: Math.round((parent.height - tile.iconSize - label.height - Kirigami.Units.smallSpacing * 2) / 2)
++        width: tile.iconSize
++        height: width
++        animated: false
++        source: model.decoration !== undefined ? model.decoration : ""
++        // o Windows "aperta" o ícone um pouco ao clicar
++        scale: mouseArea.pressed ? 0.88 : 1
++        Behavior on scale { NumberAnimation { duration: 90 } }
++    }
++
++    PlasmaComponents3.Label {
++        id: label
++        anchors.top: icon.bottom
++        anchors.topMargin: Kirigami.Units.smallSpacing * 2
++        anchors.left: parent.left
++        anchors.right: parent.right
++        anchors.leftMargin: Kirigami.Units.smallSpacing
++        anchors.rightMargin: Kirigami.Units.smallSpacing
++        horizontalAlignment: Text.AlignHCenter
++        wrapMode: Text.Wrap
++        maximumLineCount: 2
++        elide: Text.ElideRight
++        font.pointSize: Kirigami.Theme.defaultFont.pointSize - 1
++        color: Kirigami.Theme.textColor
++        textFormat: Text.PlainText
++        text: ("name" in model ? model.name : (model.display !== undefined ? model.display : ""))
++    }
++
++    MouseArea {
++        id: mouseArea
++        anchors.fill: parent
++        hoverEnabled: true
++        acceptedButtons: Qt.LeftButton | Qt.RightButton
++        onClicked: mouse => {
++            if (mouse.button === Qt.RightButton) {
++                tile.openContextMenu(mouse.x, mouse.y);
++            } else {
++                tile.launch();
++            }
++        }
++    }
++
++    function launch() {
++        var view = tile.GridView.view;
++        if (view && view.model && typeof view.model.trigger === "function") {
++            view.model.trigger(tile.itemIndex, "", null);
++            root.closeMenu();
++        }
++    }
++
++    function openContextMenu(localX, localY) {
++        var favModel = (typeof kicker !== "undefined" && kicker.globalFavorites) ? kicker.globalFavorites : null;
++        var favId = model.favoriteId !== undefined ? model.favoriteId : "";
++        var url = model.url !== undefined ? model.url : "";
++        var actionList = model.actionList !== undefined ? model.actionList : null;
++        var acts = Tools.buildAppActions(i18n, favModel, favId, url, actionList);
++        var view = tile.GridView.view;
++        // Fixado: "Mover para o início", como no Windows
++        if (view && view.model === favModel && tile.itemIndex > 0) {
++            if (acts.length > 0) acts.push({ "type": "separator" });
++            acts.push({ text: i18n("Move to front"), icon: "go-first", actionId: "_start_move_front",
++                        actionArgument: { index: tile.itemIndex } });
++        }
++        if (acts.length === 0) return;
++        var pos = tile.mapToItem(sharedContextMenu, localX, localY);
++        sharedContextMenu.open(acts, pos.x, pos.y, { model: view ? view.model : null, index: tile.itemIndex });
++    }
++
++    Keys.onPressed: event => {
++        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
++            event.accepted = true;
++            launch();
++        } else if (event.key === Qt.Key_Menu) {
++            event.accepted = true;
++            openContextMenu(width / 2, height / 2);
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/BottomBar.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/BottomBar.qml
+deleted file mode 100644
+index cb9682a..0000000
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/BottomBar.qml
++++ /dev/null
+@@ -1,188 +0,0 @@
+-/***************************************************************************
+- *   License: GPL-3.0-or-later
+- *   Author: Jeysef
+- *
+- *   StartAllBack-style compound bottom bar: the search field fills the
+- *   remaining space on the left, the "Shut down >" dropdown sits on the
+- *   right.  Both share a single row.
+- ***************************************************************************/
+-
+-import QtQuick
+-import QtQuick.Layouts
+-
+-import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kirigami as Kirigami
+-
+-import "../code/theme.js" as Theme
+-
+-RowLayout {
+-    id: bottomBar
+-
+-    spacing: Kirigami.Units.largeSpacing
+-    width: parent.width
+-
+-    property alias searchText: searchFieldInput.text
+-
+-    // The split button item, exposed so the shell can use it as the
+-    // visualParent for the power-options popup.
+-    readonly property Item splitButton: shutdownSplit
+-
+-    signal searchFocusResults
+-    signal searchNavUp
+-    signal searchNavDown
+-    signal searchActivateFirstResult
+-    signal searchEscapePressed
+-    signal tabOut
+-    signal powerMenuRequested
+-    signal powerShutdownRequested
+-
+-    function focusSearch() {
+-        searchFieldInput.forceActiveFocus();
+-    }
+-
+-    Keys.onTabPressed: event => {
+-        event.accepted = true;
+-        tabOut();
+-    }
+-
+-    // ── Search field (fills) ───────────────────────────────────────────
+-    PlasmaComponents3.TextField {
+-        id: searchFieldInput
+-        Layout.fillWidth: true
+-        focus: true
+-        placeholderText: i18n("Search programs and files")
+-        topPadding: 8
+-        bottomPadding: 8
+-        leftPadding: Kirigami.Units.gridUnit + Kirigami.Units.iconSizes.small
+-        font.pointSize: Kirigami.Theme.defaultFont.pointSize
+-
+-        background: Rectangle {
+-            color: Kirigami.Theme.backgroundColor
+-            radius: Kirigami.Units.smallSpacing * 3
+-            border.width: 1
+-            border.color: Qt.rgba(Kirigami.Theme.textColor.r,
+-                                   Kirigami.Theme.textColor.g,
+-                                   Kirigami.Theme.textColor.b, Theme.fieldBorderOpacity)
+-            Behavior on border.color { ColorAnimation { duration: 100 } }
+-        }
+-
+-        onTextChanged: bottomBar.searchTextChanged(text)
+-        Keys.onPressed: event => {
+-            if (event.key === Qt.Key_Escape) {
+-                event.accepted = true;
+-                bottomBar.searchEscapePressed();
+-                return;
+-            }
+-            if (event.key === Qt.Key_Down) {
+-                event.accepted = true;
+-                bottomBar.searchNavDown();
+-                return;
+-            }
+-            if (event.key === Qt.Key_Up) {
+-                event.accepted = true;
+-                bottomBar.searchNavUp();
+-                return;
+-            }
+-            if (event.key === Qt.Key_Tab) {
+-                event.accepted = true;
+-                bottomBar.searchFocusResults();
+-                return;
+-            }
+-        }
+-        Keys.onReturnPressed: bottomBar.searchActivateFirstResult()
+-
+-        Kirigami.Icon {
+-            source: "search"
+-            anchors.left: searchFieldInput.left
+-            anchors.verticalCenter: searchFieldInput.verticalCenter
+-            anchors.leftMargin: Kirigami.Units.smallSpacing * 2
+-            height: Kirigami.Units.iconSizes.small
+-            width: height
+-        }
+-    }
+-
+-    // ── Right: Shut down split button ─────────────────────────────────
+-    // One rounded container; left zone triggers shutdown directly, right
+-    // chevron zone opens a menu with Lock / Sleep / Restart / Shut down.
+-    Item {
+-        id: shutdownSplit
+-        Layout.alignment: Qt.AlignVCenter
+-        implicitWidth: splitRow.implicitWidth + Kirigami.Units.largeSpacing * 2
+-        implicitHeight: Math.floor(Kirigami.Units.gridUnit * 1.6)
+-
+-        Rectangle {
+-            id: splitBg
+-            anchors.fill: parent
+-            radius: Kirigami.Units.smallSpacing
+-            color: splitMouse.containsMouse
+-                   ? Qt.rgba(Kirigami.Theme.textColor.r,
+-                             Kirigami.Theme.textColor.g,
+-                             Kirigami.Theme.textColor.b, Theme.buttonFlatHoverOpacity)
+-                   : Qt.rgba(Kirigami.Theme.textColor.r,
+-                             Kirigami.Theme.textColor.g,
+-                             Kirigami.Theme.textColor.b, Theme.buttonFlatBackgroundOpacity)
+-            border.width: 1
+-            border.color: Qt.rgba(Kirigami.Theme.textColor.r,
+-                                   Kirigami.Theme.textColor.g,
+-                                   Kirigami.Theme.textColor.b, Theme.buttonBorderOpacity)
+-            Behavior on color { ColorAnimation { duration: 90 } }
+-        }
+-
+-        Row {
+-            id: splitRow
+-            anchors.centerIn: parent
+-            spacing: Kirigami.Units.smallSpacing
+-
+-            Kirigami.Icon {
+-                anchors.verticalCenter: parent.verticalCenter
+-                width: Kirigami.Units.iconSizes.smallMedium
+-                height: width
+-                source: "system-shutdown"
+-            }
+-
+-            PlasmaComponents3.Label {
+-                id: shutdownLabel
+-                anchors.verticalCenter: parent.verticalCenter
+-                text: i18n("Shut down")
+-                color: Kirigami.Theme.textColor
+-                font.pointSize: Kirigami.Theme.defaultFont.pointSize - 1
+-            }
+-
+-            // Subtle divider between the two zones.
+-            Rectangle {
+-                anchors.verticalCenter: parent.verticalCenter
+-                width: 1
+-                height: shutdownSplit.height * 0.5
+-                color: Qt.rgba(Kirigami.Theme.textColor.r,
+-                               Kirigami.Theme.textColor.g,
+-                               Kirigami.Theme.textColor.b, Theme.buttonDividerOpacity)
+-            }
+-
+-            Kirigami.Icon {
+-                anchors.verticalCenter: parent.verticalCenter
+-                width: Kirigami.Units.iconSizes.small
+-                height: width
+-                source: "go-next"
+-                opacity: Theme.buttonChevronOpacity
+-            }
+-        }
+-
+-        // Single MouseArea: hover for the whole button; click position
+-        // decides whether to shut down (left) or open the menu (right).
+-        MouseArea {
+-            id: splitMouse
+-            anchors.fill: parent
+-            hoverEnabled: true
+-            cursorShape: Qt.PointingHandCursor
+-            onClicked: mouse => {
+-                // Chevron zone = rightmost portion (icon + padding).
+-                var chevronWidth = Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2;
+-                if (mouse.x > shutdownSplit.width - chevronWidth) {
+-                    bottomBar.powerMenuRequested();
+-                } else {
+-                    bottomBar.powerShutdownRequested();
+-                }
+-            }
+-        }
+-    }
+-}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/CategoryTile.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/CategoryTile.qml
+new file mode 100644
+index 0000000..d47d3a2
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/CategoryTile.qml
+@@ -0,0 +1,141 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   "Pasta" de categoria da vista Categoria do Iniciar do Windows 11:
++ *   quadro arredondado com 2x2 ícones e o nome embaixo.  Os três primeiros
++ *   ícones abrem o app direto; o quarto canto mostra mais quatro ícones
++ *   pequenos quando a categoria tem mais apps.  O resto do quadro abre a
++ *   categoria.
++ ***************************************************************************/
++
++import QtQuick
++
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++
++Item {
++    id: tile
++
++    required property var modelData
++    required property int index
++
++    signal openRequested
++
++    width: GridView.view.cellWidth
++    height: GridView.view.cellHeight
++
++    readonly property bool focused: GridView.isCurrentItem && GridView.view.activeFocus
++    readonly property bool overflow: modelData.count > 4
++    readonly property real boxSize: width - Kirigami.Units.largeSpacing * 2
++    // 2x2 ícones de 32 px, com pouco respiro, como as pastas do Windows
++    readonly property real slot: Kirigami.Units.iconSizes.medium + Kirigami.Units.smallSpacing * 2
++
++    Accessible.role: Accessible.Button
++    Accessible.name: modelData.name
++
++    Rectangle {
++        id: box
++        anchors.horizontalCenter: parent.horizontalCenter
++        anchors.top: parent.top
++        anchors.topMargin: Kirigami.Units.smallSpacing
++        width: tile.boxSize
++        height: Math.round(tile.boxSize * 0.8)
++        radius: Kirigami.Units.smallSpacing * 2
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                       boxMouse.containsMouse ? 0.10 : 0.05)
++        border.width: tile.focused ? 2 : 1
++        border.color: tile.focused ? Kirigami.Theme.textColor
++                                   : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
++        Behavior on color { ColorAnimation { duration: 90 } }
++
++        MouseArea {
++            id: boxMouse
++            anchors.fill: parent
++            hoverEnabled: true
++            onClicked: tile.openRequested()
++        }
++
++        Grid {
++            anchors.centerIn: parent
++            columns: 2
++            columnSpacing: Kirigami.Units.smallSpacing * 2
++            rowSpacing: Kirigami.Units.smallSpacing * 2
++
++            Repeater {
++                model: 4
++                delegate: Item {
++                    id: cell
++                    required property int index
++                    readonly property bool mini: index === 3 && tile.overflow
++                    readonly property var app: !mini && index < tile.modelData.apps.length ? tile.modelData.apps[index] : null
++                    width: tile.slot
++                    height: tile.slot
++
++                    // ícone grande: abre o app
++                    Rectangle {
++                        visible: cell.app !== null
++                        anchors.fill: parent
++                        anchors.margins: -Kirigami.Units.smallSpacing
++                        radius: Kirigami.Units.smallSpacing
++                        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.10)
++                        opacity: appMouse.containsMouse ? 1 : 0
++                    }
++                    Kirigami.Icon {
++                        visible: cell.app !== null
++                        anchors.centerIn: parent
++                        width: Math.min(parent.width, Kirigami.Units.iconSizes.medium)
++                        height: width
++                        animated: false
++                        source: cell.app ? cell.app.icon : ""
++                        scale: appMouse.pressed ? 0.88 : 1
++                        Behavior on scale { NumberAnimation { duration: 90 } }
++                    }
++                    MouseArea {
++                        id: appMouse
++                        visible: cell.app !== null
++                        anchors.fill: parent
++                        hoverEnabled: true
++                        PlasmaComponents3.ToolTip.text: cell.app ? cell.app.name : ""
++                        PlasmaComponents3.ToolTip.visible: containsMouse
++                        PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
++                        onClicked: {
++                            tile.modelData.model.trigger(cell.app.row, "", null);
++                            root.closeMenu();
++                        }
++                    }
++
++                    // canto com 2x2 ícones pequenos: abre a categoria
++                    Grid {
++                        visible: cell.mini
++                        anchors.centerIn: parent
++                        columns: 2
++                        spacing: Kirigami.Units.smallSpacing / 2
++                        Repeater {
++                            model: cell.mini ? tile.modelData.apps.slice(3, 7) : []
++                            delegate: Kirigami.Icon {
++                                required property var modelData
++                                width: Math.round(Kirigami.Units.iconSizes.medium / 2) - 1
++                                height: width
++                                animated: false
++                                source: modelData.icon
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    PlasmaComponents3.Label {
++        anchors.top: box.bottom
++        anchors.topMargin: Kirigami.Units.smallSpacing
++        anchors.left: box.left
++        anchors.right: box.right
++        horizontalAlignment: Text.AlignHCenter
++        elide: Text.ElideRight
++        maximumLineCount: 1
++        font.pointSize: Kirigami.Theme.defaultFont.pointSize - 1
++        color: Kirigami.Theme.textColor
++        text: tile.modelData.name
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/RecommendedItem.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/RecommendedItem.qml
+new file mode 100644
+index 0000000..ebcf5d3
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/RecommendedItem.qml
+@@ -0,0 +1,114 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Item da seção Recomendado do Iniciar do Windows 11: ícone à esquerda,
++ *   nome e uma linha de detalhe em cinza.  Mesmo clique/menu do AppTile.
++ ***************************************************************************/
++
++import QtQuick
++
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++
++import "../code/tools.js" as Tools
++
++Item {
++    id: item
++
++    width: GridView.view.cellWidth
++    height: GridView.view.cellHeight
++
++    property int itemIndex: model.index
++
++    Accessible.role: Accessible.MenuItem
++    Accessible.name: nameLabel.text
++
++    Rectangle {
++        anchors.fill: parent
++        anchors.margins: Kirigami.Units.smallSpacing / 2
++        radius: Kirigami.Units.smallSpacing
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
++                       Kirigami.Theme.textColor.b, mouseArea.pressed ? 0.04 : 0.07)
++        border.width: item.GridView.isCurrentItem && item.GridView.view.activeFocus ? 2 : 0
++        border.color: Kirigami.Theme.textColor
++        opacity: mouseArea.containsMouse || (item.GridView.isCurrentItem && item.GridView.view.activeFocus) ? 1 : 0
++        Behavior on opacity { NumberAnimation { duration: 90 } }
++    }
++
++    Kirigami.Icon {
++        id: icon
++        anchors.left: parent.left
++        anchors.leftMargin: Kirigami.Units.largeSpacing * 1.5
++        anchors.verticalCenter: parent.verticalCenter
++        width: Kirigami.Units.iconSizes.medium
++        height: width
++        animated: false
++        source: model.decoration !== undefined ? model.decoration : ""
++    }
++
++    Column {
++        anchors.left: icon.right
++        anchors.leftMargin: Kirigami.Units.largeSpacing * 1.5
++        anchors.right: parent.right
++        anchors.rightMargin: Kirigami.Units.largeSpacing
++        anchors.verticalCenter: parent.verticalCenter
++        spacing: 0
++
++        PlasmaComponents3.Label {
++            id: nameLabel
++            width: parent.width
++            elide: Text.ElideRight
++            maximumLineCount: 1
++            textFormat: Text.PlainText
++            color: Kirigami.Theme.textColor
++            text: model.display !== undefined ? model.display : ""
++        }
++        PlasmaComponents3.Label {
++            width: parent.width
++            visible: text !== ""
++            elide: Text.ElideMiddle
++            maximumLineCount: 1
++            textFormat: Text.PlainText
++            font.pointSize: Kirigami.Theme.defaultFont.pointSize - 1
++            color: Kirigami.Theme.disabledTextColor
++            text: model.description !== undefined && model.description !== model.display ? model.description : ""
++        }
++    }
++
++    MouseArea {
++        id: mouseArea
++        anchors.fill: parent
++        hoverEnabled: true
++        acceptedButtons: Qt.LeftButton | Qt.RightButton
++        onClicked: mouse => {
++            if (mouse.button === Qt.RightButton) {
++                item.openContextMenu(mouse.x, mouse.y);
++            } else {
++                item.launch();
++            }
++        }
++    }
++
++    function launch() {
++        var view = item.GridView.view;
++        if (view && view.model) {
++            view.model.trigger(item.itemIndex, "", null);
++            root.closeMenu();
++        }
++    }
++
++    function openContextMenu(localX, localY) {
++        var acts = model.actionList !== undefined && model.actionList ? model.actionList.slice() : [];
++        if (acts.length === 0) return;
++        var view = item.GridView.view;
++        var pos = item.mapToItem(sharedContextMenu, localX, localY);
++        sharedContextMenu.open(acts, pos.x, pos.y, { model: view ? view.model : null, index: item.itemIndex });
++    }
++
++    Keys.onPressed: event => {
++        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
++            event.accepted = true;
++            launch();
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SearchBar.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SearchBar.qml
+new file mode 100644
+index 0000000..0b74384
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SearchBar.qml
+@@ -0,0 +1,83 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Caixa de pesquisa no topo do Iniciar do Windows 11: arredondada,
++ *   lupa à esquerda, linha de destaque embaixo quando tem foco.
++ ***************************************************************************/
++
++import QtQuick
++
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++
++import "../code/theme.js" as Theme
++
++PlasmaComponents3.TextField {
++    id: field
++
++    signal searchFocusResults
++    signal searchNavUp
++    signal searchNavDown
++    signal searchActivateFirstResult
++    signal searchEscapePressed
++
++    function focusSearch() {
++        forceActiveFocus();
++    }
++
++    focus: true
++    placeholderText: i18n("Search for apps, settings, and documents")
++    topPadding: Math.round(Kirigami.Units.gridUnit * 0.55)
++    bottomPadding: topPadding
++    leftPadding: Kirigami.Units.iconSizes.small + Kirigami.Units.largeSpacing * 2
++    rightPadding: Kirigami.Units.largeSpacing
++    font.pointSize: Kirigami.Theme.defaultFont.pointSize
++
++    background: Rectangle {
++        radius: height / 2
++        color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g,
++                       Kirigami.Theme.backgroundColor.b, field.activeFocus ? 0.95 : 0.7)
++        border.width: 1
++        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
++                              Kirigami.Theme.textColor.b, Theme.fieldBorderOpacity)
++
++        // destaque de foco na borda de baixo, como os campos do Windows 11
++        Rectangle {
++            anchors.bottom: parent.bottom
++            anchors.horizontalCenter: parent.horizontalCenter
++            width: parent.width - parent.radius * 2
++            height: 2
++            radius: 1
++            color: Kirigami.Theme.highlightColor
++            opacity: field.activeFocus ? 1 : 0
++            Behavior on opacity { NumberAnimation { duration: 120 } }
++        }
++    }
++
++    Kirigami.Icon {
++        source: "search"
++        anchors.left: parent.left
++        anchors.leftMargin: Kirigami.Units.largeSpacing
++        anchors.verticalCenter: parent.verticalCenter
++        width: Kirigami.Units.iconSizes.small
++        height: width
++    }
++
++    Keys.onPressed: event => {
++        if (event.key === Qt.Key_Escape) {
++            event.accepted = true;
++            searchEscapePressed();
++        } else if (event.key === Qt.Key_Down) {
++            event.accepted = true;
++            searchNavDown();
++        } else if (event.key === Qt.Key_Up) {
++            event.accepted = true;
++            searchNavUp();
++        } else if (event.key === Qt.Key_Tab) {
++            event.accepted = true;
++            searchFocusResults();
++        }
++    }
++    Keys.onReturnPressed: searchActivateFirstResult()
++    Keys.onEnterPressed: searchActivateFirstResult()
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SectionHeader.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SectionHeader.qml
+new file mode 100644
+index 0000000..dae92fb
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SectionHeader.qml
+@@ -0,0 +1,95 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Cabeçalho de seção do Iniciar ("Fixado", "Todos", nome da categoria):
++ *   título em negrito à esquerda e um botão discreto à direita
++ *   ("Mostrar tudo >", "Categoria v") ou "<" de voltar antes do título.
++ ***************************************************************************/
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++
++RowLayout {
++    id: header
++
++    property string title
++    property string buttonText
++    property string buttonIcon: "go-next"
++    property bool backButton: false
++
++    signal buttonClicked(Item button)
++    signal backClicked
++
++    Layout.fillWidth: true
++    Layout.leftMargin: Kirigami.Units.largeSpacing
++    Layout.rightMargin: Kirigami.Units.smallSpacing
++    Layout.preferredHeight: Math.round(Kirigami.Units.gridUnit * 1.8)
++    spacing: Kirigami.Units.smallSpacing
++
++    HeaderButton {
++        visible: header.backButton
++        iconName: "go-previous"
++        onClicked: header.backClicked()
++    }
++
++    PlasmaComponents3.Label {
++        text: header.title
++        font.weight: Font.DemiBold
++        color: Kirigami.Theme.textColor
++        elide: Text.ElideRight
++        Layout.fillWidth: true
++    }
++
++    HeaderButton {
++        id: button
++        visible: header.buttonText !== ""
++        text: header.buttonText
++        iconName: header.buttonIcon
++        onClicked: header.buttonClicked(button)
++    }
++
++    component HeaderButton: Rectangle {
++        id: btn
++        property string text
++        property string iconName
++        signal clicked
++
++        implicitWidth: btnRow.implicitWidth + Kirigami.Units.largeSpacing * (text === "" ? 1 : 2)
++        implicitHeight: Math.round(Kirigami.Units.gridUnit * 1.5)
++        radius: Kirigami.Units.smallSpacing
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                       btnMouse.pressed ? 0.04 : (btnMouse.containsMouse ? 0.10 : 0.06))
++        border.width: 1
++        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
++
++        Row {
++            id: btnRow
++            anchors.centerIn: parent
++            spacing: Kirigami.Units.smallSpacing
++            PlasmaComponents3.Label {
++                visible: btn.text !== ""
++                anchors.verticalCenter: parent.verticalCenter
++                text: btn.text
++                font.pointSize: Kirigami.Theme.defaultFont.pointSize - 1
++                color: Kirigami.Theme.textColor
++            }
++            Kirigami.Icon {
++                anchors.verticalCenter: parent.verticalCenter
++                width: Kirigami.Units.iconSizes.small
++                height: width
++                source: btn.iconName
++                opacity: 0.8
++            }
++        }
++
++        MouseArea {
++            id: btnMouse
++            anchors.fill: parent
++            hoverEnabled: true
++            onClicked: btn.clicked()
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml
+new file mode 100644
+index 0000000..87395e6
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/StartFooter.qml
+@@ -0,0 +1,170 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Rodapé do Iniciar do Windows 11: conta (foto + nome) à esquerda;
++ *   à direita as pastas escolhidas ("Pastas ao lado do botão Liga/Desliga")
++ *   e o botão de energia, que abre Bloquear / Suspender / Desligar…
++ ***************************************************************************/
++
++import QtQuick
++import QtQuick.Layouts
++import Qt5Compat.GraphicalEffects
++
++import org.kde.plasma.plasmoid
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++import org.kde.coreaddons as KCoreAddons
++
++Rectangle {
++    id: footer
++
++    property var executable: null
++    readonly property Item powerButton: powerBtn
++
++    signal powerMenuRequested
++
++    implicitHeight: Math.round(Kirigami.Units.gridUnit * 3.4)
++    // faixa um pouco mais escura, separada por uma linha fina
++    color: Qt.rgba(0, 0, 0, 0.12)
++
++    Rectangle {
++        anchors.top: parent.top
++        width: parent.width
++        height: 1
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
++    }
++
++    KCoreAddons.KUser { id: kuser }
++
++    readonly property var allFolders: ({
++        "settings":  { text: i18n("Settings"),  icon: "preferences-system",   command: "systemsettings" },
++        "explorer":  { text: i18n("File Explorer"), icon: "system-file-manager", command: "dolphin" },
++        "home":      { text: i18n("Home"),      icon: "user-home",             command: "xdg-open $HOME" },
++        "documents": { text: i18n("Documents"), icon: "folder-documents",      command: "xdg-open \"$(xdg-user-dir DOCUMENTS)\"" },
++        "downloads": { text: i18n("Downloads"), icon: "folder-download",       command: "xdg-open \"$(xdg-user-dir DOWNLOAD)\"" },
++        "music":     { text: i18n("Music"),     icon: "folder-music",          command: "xdg-open \"$(xdg-user-dir MUSIC)\"" },
++        "pictures":  { text: i18n("Pictures"),  icon: "folder-pictures",       command: "xdg-open \"$(xdg-user-dir PICTURES)\"" },
++        "videos":    { text: i18n("Videos"),    icon: "folder-videos",         command: "xdg-open \"$(xdg-user-dir VIDEOS)\"" },
++        "network":   { text: i18n("Network"),   icon: "folder-network",        command: "dolphin remote:/" }
++    })
++    readonly property var folders: {
++        var out = [];
++        var keys = Plasmoid.configuration.footerFolders || [];
++        for (var i = 0; i < keys.length; i++) {
++            if (allFolders[keys[i]]) out.push(allFolders[keys[i]]);
++        }
++        return out;
++    }
++
++    RowLayout {
++        anchors.fill: parent
++        anchors.leftMargin: Kirigami.Units.gridUnit * 2
++        anchors.rightMargin: Kirigami.Units.gridUnit * 2
++        spacing: Kirigami.Units.smallSpacing
++
++        // ── conta ─────────────────────────────────────────────────────────
++        FooterButton {
++            id: account
++            implicitWidth: accountRow.implicitWidth + Kirigami.Units.largeSpacing * 2
++            toolTip: ""
++            onClicked: footer.run("systemsettings kcm_users")
++
++            RowLayout {
++                id: accountRow
++                anchors.centerIn: parent
++                spacing: Kirigami.Units.largeSpacing
++
++                Item {
++                    Layout.preferredWidth: Kirigami.Units.iconSizes.medium
++                    Layout.preferredHeight: Kirigami.Units.iconSizes.medium
++                    Image {
++                        id: avatar
++                        anchors.fill: parent
++                        source: kuser.faceIconUrl.toString() !== "" ? kuser.faceIconUrl : ""
++                        visible: false
++                        cache: false
++                        fillMode: Image.PreserveAspectCrop
++                        sourceSize: Qt.size(width * 2, height * 2)
++                    }
++                    OpacityMask {
++                        anchors.fill: parent
++                        visible: avatar.status === Image.Ready
++                        source: avatar
++                        maskSource: Rectangle { width: avatar.width; height: avatar.height; radius: width / 2 }
++                    }
++                    Kirigami.Icon {
++                        anchors.fill: parent
++                        visible: avatar.status !== Image.Ready
++                        source: "user-identity"
++                    }
++                }
++                PlasmaComponents3.Label {
++                    text: kuser.fullName || kuser.loginName
++                    color: Kirigami.Theme.textColor
++                    elide: Text.ElideRight
++                    Layout.maximumWidth: Kirigami.Units.gridUnit * 14
++                }
++            }
++        }
++
++        Item { Layout.fillWidth: true }
++
++        // ── pastas + energia ─────────────────────────────────────────────
++        Repeater {
++            model: footer.folders
++            delegate: FooterButton {
++                required property var modelData
++                implicitWidth: implicitHeight
++                toolTip: modelData.text
++                onClicked: footer.run(modelData.command)
++                Kirigami.Icon {
++                    anchors.centerIn: parent
++                    width: Kirigami.Units.iconSizes.smallMedium
++                    height: width
++                    source: modelData.icon
++                }
++            }
++        }
++
++        FooterButton {
++            id: powerBtn
++            implicitWidth: implicitHeight
++            toolTip: i18n("Power")
++            onClicked: footer.powerMenuRequested()
++            Kirigami.Icon {
++                anchors.centerIn: parent
++                width: Kirigami.Units.iconSizes.smallMedium
++                height: width
++                source: "system-shutdown"
++            }
++        }
++    }
++
++    function run(cmd) {
++        if (executable) executable.exec(cmd);
++        root.closeMenu();
++    }
++
++    component FooterButton: Rectangle {
++        id: fb
++        property string toolTip
++        signal clicked
++        implicitHeight: Math.round(Kirigami.Units.gridUnit * 2.4)
++        Layout.preferredHeight: implicitHeight
++        Layout.preferredWidth: implicitWidth
++        radius: Kirigami.Units.smallSpacing
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                       fbMouse.pressed ? 0.05 : (fbMouse.containsMouse ? 0.08 : 0))
++        Behavior on color { ColorAnimation { duration: 90 } }
++        MouseArea {
++            id: fbMouse
++            anchors.fill: parent
++            hoverEnabled: true
++            z: 10
++            onClicked: fb.clicked()
++            PlasmaComponents3.ToolTip.text: fb.toolTip
++            PlasmaComponents3.ToolTip.visible: fb.toolTip !== "" && containsMouse
++            PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SystemLocationsColumn.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SystemLocationsColumn.qml
+deleted file mode 100644
+index 89fc857..0000000
+--- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/components/SystemLocationsColumn.qml
++++ /dev/null
+@@ -1,127 +0,0 @@
+-/***************************************************************************
+- *   License: GPL-3.0-or-later
+- *   Author: Jeysef
+- *
+- *   Right-hand column of the StartAllBack-style two-column layout.
+- *   Vertical list of system locations (Documents, Pictures, Music, This PC,
+- *   Settings, Run...) with hover highlighting.  Pattern adapted from
+- *   Start.Next.Menu's "places" column (ListModel + ListView, icon + text).
+- ***************************************************************************/
+-
+-import QtQuick
+-
+-import org.kde.plasma.plasmoid
+-import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kirigami as Kirigami
+-
+-import "../code/theme.js" as Theme
+-
+-Item {
+-    id: column
+-
+-    property var executable: null
+-
+-    readonly property var allLocations: [
+-        { text: QT_TR_NOOP("Home"),          icon: "user-home",             command: "xdg-open $HOME" },
+-        { text: QT_TR_NOOP("Documents"),      icon: "folder-documents",     command: "xdg-open $(xdg-user-dir DOCUMENTS)" },
+-        { text: QT_TR_NOOP("Pictures"),       icon: "folder-pictures",      command: "xdg-open $(xdg-user-dir PICTURES)" },
+-        { text: QT_TR_NOOP("Music"),          icon: "folder-music",         command: "xdg-open $(xdg-user-dir MUSIC)" },
+-        { text: QT_TR_NOOP("Downloads"),      icon: "folder-download",      command: "xdg-open $(xdg-user-dir DOWNLOAD)" },
+-        { text: QT_TR_NOOP("Recent Items"),   icon: "document-open-recent", command: "xdg-open $(xdg-user-dir DOCUMENTS)" },
+-        { text: QT_TR_NOOP("This PC"),        icon: "computer",             command: "dolphin" },
+-        { text: QT_TR_NOOP("Update"),         icon: "system-software-update", command: "plasma-discover" },
+-        { text: QT_TR_NOOP("Terminal"),       icon: "utilities-terminal",   command: "T=$(kreadconfig6 --file kdeglobals --group General --key TerminalApplication); command -v ${T:-konsole} >/dev/null 2>&1 && exec ${T:-konsole} || exec alacritty" },
+-        { text: QT_TR_NOOP("Run..."),         icon: "system-run",           command: "krunner" }
+-    ]
+-
+-    readonly property var allKeys: ["home","documents","pictures","music","downloads","recent","thispc","update","terminal","run"]
+-
+-    readonly property var visibleLocations: {
+-        var items = Plasmoid.configuration.rightColumnItems;
+-        if (!items || items.length === 0) {
+-            return allLocations;
+-        }
+-        var out = [];
+-        for (var i = 0; i < items.length; i++) {
+-            var idx = allKeys.indexOf(items[i]);
+-            if (idx >= 0) {
+-                out.push(allLocations[idx]);
+-            }
+-        }
+-        return out.length > 0 ? out : allLocations;
+-    }
+-
+-    PlasmaComponents3.ScrollView {
+-        id: scroll
+-        anchors.fill: parent
+-        PlasmaComponents3.ScrollBar.horizontal.policy: PlasmaComponents3.ScrollBar.AlwaysOff
+-
+-        ListView {
+-            id: list
+-            anchors.fill: parent
+-            clip: true
+-            model: column.visibleLocations
+-            spacing: Kirigami.Units.smallSpacing / 2
+-            boundsBehavior: Flickable.StopAtBounds
+-
+-            delegate: Item {
+-                id: locDelegate
+-                width: ListView.view.width
+-                height: Kirigami.Units.gridUnit * 2
+-
+-                required property var modelData
+-                required property int index
+-
+-                Rectangle {
+-                    id: locHover
+-                    anchors.fill: parent
+-                    anchors.margins: Kirigami.Units.smallSpacing / 2
+-                    radius: Kirigami.Units.smallSpacing
+-                    color: Kirigami.Theme.hoverColor
+-                    opacity: locMouse.containsMouse ? Theme.opacityFull : Theme.opacityHidden
+-                    Behavior on opacity { NumberAnimation { duration: 90 } }
+-                }
+-
+-                Row {
+-                    anchors.verticalCenter: parent.verticalCenter
+-                    anchors.left: parent.left
+-                    anchors.leftMargin: Kirigami.Units.largeSpacing
+-                    anchors.right: parent.right
+-                    anchors.rightMargin: Kirigami.Units.largeSpacing
+-                    spacing: Kirigami.Units.largeSpacing
+-
+-                    Kirigami.Icon {
+-                        anchors.verticalCenter: parent.verticalCenter
+-                        width: Kirigami.Units.iconSizes.smallMedium
+-                        height: width
+-                        source: locDelegate.modelData.icon
+-                        animated: false
+-                    }
+-
+-                    PlasmaComponents3.Label {
+-                        anchors.verticalCenter: parent.verticalCenter
+-                        width: parent.width - Kirigami.Units.iconSizes.smallMedium - parent.spacing
+-                        text: i18n(locDelegate.modelData.text)
+-                        color: Kirigami.Theme.textColor
+-                        font.pointSize: Kirigami.Theme.defaultFont.pointSize
+-                        elide: Text.ElideRight
+-                        maximumLineCount: 1
+-                        horizontalAlignment: Text.AlignLeft
+-                    }
+-                }
+-
+-                MouseArea {
+-                    id: locMouse
+-                    anchors.fill: parent
+-                    hoverEnabled: true
+-                    cursorShape: Qt.PointingHandCursor
+-                    onClicked: {
+-                        if (column.executable && locDelegate.modelData.command) {
+-                            column.executable.exec(locDelegate.modelData.command);
+-                        }
+-                    }
+-                }
+-            }
+-        }
+-    }
+-}
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
-index 22eeace..9a2a8d3 100644
+deleted file mode 100644
+index 22eeace..0000000
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
-+++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/AllAppsPage.qml
-@@ -26,25 +26,104 @@ ColumnLayout {
-     signal backRequested
-     signal keyNavUpFromList
- 
-+    // ── Categorias (estilo Kickoff) ─────────────────────────────────────
-+    // categoryRow: -2 = lista de categorias, -1 = todos os apps,
-+    // >= 0 = linha da categoria no rootModel do Kicker.
-+    property var appsRootModel: null
-+    property var proxyModel: null
-+    property var allModel: null
-+    property int categoryRow: -2
++++ /dev/null
+@@ -1,108 +0,0 @@
+-/***************************************************************************
+- *   License: GPL-3.0-or-later
+- *   Author: Jeysef
+- *
+- *   StartAllBack-style all-apps page: a vertical alphabetical list using
+- *   ListItemDelegate.  Shown in place of the pinned list when "All Programs"
+- *   is toggled — the shell swaps the left column content rather than using
+- *   a SwipeView page.
+- ***************************************************************************/
+-
+-import QtQuick
+-import QtQuick.Layouts
+-
+-import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kirigami as Kirigami
+-
+-import "../components"
+-
+-ColumnLayout {
+-    id: allAppsPage
+-
+-    spacing: Kirigami.Units.largeSpacing
+-
+-    property alias allAppsList: allAppsListView
+-
+-    signal backRequested
+-    signal keyNavUpFromList
+-
+-    function tryActivate(row) {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.min(row, allAppsListView.count - 1);
+-        }
+-    }
+-
+-    function navigateUp() {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.max(0, allAppsListView.currentIndex - 1);
+-        }
+-    }
+-
+-    function navigateDown() {
+-        if (allAppsListView.count > 0) {
+-            allAppsListView.currentIndex = Math.min(allAppsListView.count - 1, allAppsListView.currentIndex + 1);
+-        }
+-    }
+-
+-    function activateCurrent() {
+-        if (allAppsListView.currentIndex >= 0 && allAppsListView.model) {
+-            allAppsListView.model.trigger(allAppsListView.currentIndex, "", null);
+-            root.closeMenu();
+-        }
+-    }
+-
+-    // ── Header row: "All apps" + spacer + "< Back" (right-aligned) ──────
+-    RowLayout {
+-        id: headerRow
+-        Layout.fillWidth: true
+-        spacing: Kirigami.Units.smallSpacing
+-
+-        PlasmaComponents3.Label {
+-            text: i18n("All apps")
+-            color: Kirigami.Theme.textColor
+-            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.95
+-            font.weight: Font.DemiBold
+-            Layout.alignment: Qt.AlignVCenter
+-        }
+-
+-        Item { Layout.fillWidth: true }
+-
+-        AToolButton {
+-            flat: true
+-            iconName: "go-previous"
+-            text: i18n("Back")
+-            buttonHeight: 25
+-            Layout.rightMargin: Kirigami.Units.mediumSpacing
+-            onClicked: allAppsPage.backRequested()
+-        }
+-    }
+-
+-    // ── All apps vertical list ───────────────────────────────────────────
+-    ListView {
+-        id: allAppsListView
+-        Layout.fillWidth: true
+-        Layout.fillHeight: true
+-        clip: true
+-        interactive: true
+-        spacing: Kirigami.Units.smallSpacing / 2
+-        boundsBehavior: Flickable.StopAtBounds
+-        currentIndex: -1
+-
+-        PlasmaComponents3.ScrollBar.vertical: PlasmaComponents3.ScrollBar {
+-            policy: PlasmaComponents3.ScrollBar.AsNeeded
+-        }
+-
+-        delegate: ListItemDelegate {
+-            iconSize: Kirigami.Units.iconSizes.smallMedium
+-        }
+-
+-        highlightMoveDuration: 0
+-
+-        Keys.onUpPressed: event => {
+-            if (currentIndex <= 0) {
+-                event.accepted = true;
+-                allAppsPage.keyNavUpFromList();
+-            }
+-        }
+-    }
+-}
+diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/HomePage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/HomePage.qml
+new file mode 100644
+index 0000000..0d6b1a0
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/HomePage.qml
+@@ -0,0 +1,440 @@
++/***************************************************************************
++ *   License: GPL-3.0-or-later
++ *
++ *   Página inicial do Iniciar do Windows 11 (versão 2025), numa só rolagem:
++ *
++ *     Fixado                              [Mostrar tudo >]
++ *     [■] [■] [■] [■] [■] [■]              grade de favoritos (6 colunas)
++ *
++ *     Recomendado                            arquivos recentes
++ *
++ *     Todos                                   [Categoria v]
++ *     ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐   categorias (2x2 ícones),
++ *     │ ■  ■ │ │ ■  ■ │ │ ■  ■ │ │ ■  ■ │   grade ou lista A-Z
++ *     └──────┘ └──────┘ └──────┘ └──────┘
++ *
++ *   Clicar numa categoria abre a página dela (grade com os apps).
++ ***************************************************************************/
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.plasmoid
++import org.kde.plasma.components as PlasmaComponents3
++import org.kde.kirigami as Kirigami
++import org.kde.kitemmodels 1.0 as KItemModels
++
++import "../components"
++import "../code/theme.js" as Theme
++
++Item {
++    id: home
++
++    // modelos (definidos pelo MenuRepresentation em setModels)
++    property var favoritesModel: null
++    property var appsModel: null      // todos os apps, ordenados
++    property var appsRootModel: null  // rootModel do Kicker (categorias)
++
++    readonly property int columns: 6
++    readonly property real cellWidth: Math.floor(flick.width / columns)
++    readonly property real cellHeight: Math.round(Kirigami.Units.gridUnit * 4.6)
++    readonly property int pinnedRows: 3
++    readonly property int categoryColumns: 4
++
++    // 0 = categorias, 1 = grade, 2 = lista (Plasmoid.configuration.allAppsViewMode)
++    readonly property int viewMode: Math.max(0, Math.min(2, Plasmoid.configuration.allAppsViewMode))
++    property bool pinnedExpanded: false
++
++    // categoria aberta: -1 = nenhuma (página inicial)
++    property int categoryRow: -1
 +    property string categoryName: ""
 +    property var categories: []
 +
-+    readonly property bool showingCategories: categoryRow === -2
-+    readonly property var activeList: showingCategories ? categoryListView : allAppsListView
++    readonly property bool showingCategory: categoryRow >= 0
++
++    signal keyNavUpFromList
 +
 +    function rebuildCategories() {
-+        var list = [{ row: -1, name: i18n("All applications"), icon: "applications-all" }];
++        var list = [];
 +        var m = appsRootModel;
++        recentDocs.sourceModel = null;
 +        if (m) {
-+            for (var i = 0; i < m.rowCount(); i++) {
++            // O Kicker põe "Aplicativos recentes" e "Arquivos recentes" antes de
++            // "Todos os aplicativos": os arquivos viram a seção Recomendado,
++            // como no Windows; nenhum dos dois é categoria.
++            var allRow = -1;
++            for (var r = 0; r < m.rowCount(); r++) {
++                var rm = m.modelForRow(r);
++                if (rm && rm.description === "KICKER_ALL_MODEL") { allRow = r; break; }
++            }
++            if (allRow > 0 && Plasmoid.configuration.showRecentDocs) {
++                recentDocs.sourceModel = m.modelForRow(allRow - 1);
++            }
++            for (var i = allRow + 1; i < m.rowCount(); i++) {
 +                var sub = m.modelForRow(i);
-+                if (!sub) continue;
++                if (!sub || sub.rowCount() === 0) continue;
 +                var d = sub.description || "";
 +                if (d.indexOf("KICKER_") === 0) continue;
 +                var idx = m.index(i, 0);
-+                list.push({ row: i, name: m.data(idx, Qt.DisplayRole), icon: m.data(idx, Qt.DecorationRole) });
++                var apps = [];
++                var n = sub.rowCount();
++                for (var j = 0; j < Math.min(n, 7); j++) {
++                    apps.push({ row: j, icon: sub.data(sub.index(j, 0), Qt.DecorationRole),
++                                name: sub.data(sub.index(j, 0), Qt.DisplayRole) });
++                }
++                list.push({ row: i, name: m.data(idx, Qt.DisplayRole), count: n, apps: apps, model: sub });
 +            }
 +        }
 +        categories = list;
 +    }
 +
 +    function openCategory(c) {
-+        if (!proxyModel) return;
-+        proxyModel.sourceModel = c.row < 0 ? allModel : appsRootModel.modelForRow(c.row);
++        categoryModel.sourceModel = c.model;
 +        categoryName = c.name;
 +        categoryRow = c.row;
-+        allAppsListView.currentIndex = -1;
-+        allAppsListView.positionViewAtBeginning();
-+        slideIn(allAppsListView, appsShift, Kirigami.Units.gridUnit * 2);
++        categoryGrid.currentIndex = -1;
++        flick.contentY = 0;
++        slideAnim.fromX = Kirigami.Units.gridUnit * 2;
++        slideAnim.restart();
 +    }
 +
-+    function resetCategories() {
-+        if (proxyModel && allModel) proxyModel.sourceModel = allModel;
-+        categoryRow = -2;
-+        categoryListView.currentIndex = -1;
++    function closeCategory() {
++        if (!showingCategory) return;
++        categoryRow = -1;
++        flick.contentY = 0;
++        slideAnim.fromX = -Kirigami.Units.gridUnit * 2;
++        slideAnim.restart();
 +    }
 +
-+    function goBack() {
-+        if (showingCategories) {
-+            allAppsPage.backRequested();
-+        } else {
-+            resetCategories();
-+            slideIn(categoryListView, catShift, -Kirigami.Units.gridUnit * 2);
-+        }
++    function reset() {
++        categoryRow = -1;
++        pinnedExpanded = false;
++        flick.contentY = 0;
++        pinnedGrid.currentIndex = -1;
++        allGrid.currentIndex = -1;
++        allList.currentIndex = -1;
++        categoriesGrid.currentIndex = -1;
 +    }
 +
-+    onVisibleChanged: if (!visible) resetCategories()
-+
-+    // Transições estilo Windows 11: a lista nova entra deslizando e aparecendo.
-+    function slideIn(target, shift, fromX) {
-+        slideAnim.stop();
-+        slideAnim.target = target;
-+        slideAnim.shift = shift;
-+        slideAnim.fromX = fromX;
-+        slideAnim.start();
-+    }
-+    ParallelAnimation {
-+        id: slideAnim
-+        property Item target
-+        property Translate shift
-+        property real fromX: 0
-+        NumberAnimation { target: slideAnim.shift; property: "x"; from: slideAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
-+        NumberAnimation { target: slideAnim.target; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++    function setViewMode(mode) {
++        Plasmoid.configuration.allAppsViewMode = mode;
++        flick.contentY = 0;
 +    }
 +
-     function tryActivate(row) {
--        if (allAppsListView.count > 0) {
--            allAppsListView.currentIndex = Math.min(row, allAppsListView.count - 1);
-+        if (activeList.count > 0) {
-+            activeList.currentIndex = Math.min(row, activeList.count - 1);
-         }
-     }
- 
-     function navigateUp() {
--        if (allAppsListView.count > 0) {
--            allAppsListView.currentIndex = Math.max(0, allAppsListView.currentIndex - 1);
-+        if (activeList.count > 0) {
-+            activeList.currentIndex = Math.max(0, activeList.currentIndex - 1);
-         }
-     }
- 
-     function navigateDown() {
--        if (allAppsListView.count > 0) {
--            allAppsListView.currentIndex = Math.min(allAppsListView.count - 1, allAppsListView.currentIndex + 1);
-+        if (activeList.count > 0) {
-+            activeList.currentIndex = Math.min(activeList.count - 1, activeList.currentIndex + 1);
-         }
-     }
- 
-     function activateCurrent() {
-+        if (showingCategories) {
-+            if (categoryListView.currentIndex >= 0) {
-+                openCategory(categories[categoryListView.currentIndex]);
-+            }
++    // ── navegação por teclado ────────────────────────────────────────────
++    // As vistas, em ordem de cima para baixo.
++    readonly property var views: showingCategory ? [categoryGrid]
++        : [pinnedGrid, recommendedGrid, viewMode === 0 ? categoriesGrid : (viewMode === 1 ? allGrid : allList)]
++
++    function focusView(i, fromBelow) {
++        var vs = views;
++        if (i < 0) {
++            keyNavUpFromList();
 +            return;
 +        }
-         if (allAppsListView.currentIndex >= 0 && allAppsListView.model) {
-             allAppsListView.model.trigger(allAppsListView.currentIndex, "", null);
-             root.closeMenu();
-@@ -58,7 +137,7 @@ ColumnLayout {
-         spacing: Kirigami.Units.smallSpacing
- 
-         PlasmaComponents3.Label {
--            text: i18n("All apps")
-+            text: allAppsPage.showingCategories ? i18n("Categories") : allAppsPage.categoryName
-             color: Kirigami.Theme.textColor
-             font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.95
-             font.weight: Font.DemiBold
-@@ -69,17 +148,99 @@ ColumnLayout {
- 
-         AToolButton {
-             flat: true
--            iconName: "go-previous"
--            text: i18n("Back")
-+            iconName: allAppsPage.showingCategories ? "go-next" : "go-previous"
-+            text: allAppsPage.showingCategories ? i18n("Pinned") : i18n("Back")
-             buttonHeight: 25
-             Layout.rightMargin: Kirigami.Units.mediumSpacing
--            onClicked: allAppsPage.backRequested()
-+            onClicked: allAppsPage.goBack()
++        if (i >= vs.length) return;
++        var v = vs[i];
++        if (v.count === 0) {
++            focusView(fromBelow ? i - 1 : i + 1, fromBelow);
++            return;
++        }
++        v.currentIndex = fromBelow ? v.count - 1 : 0;
++        v.forceActiveFocus();
++    }
++
++    function tryActivate() { focusView(0, false); }
++    function navigateDown() { focusView(0, false); }
++    function navigateUp() { focusView(views.length - 1, true); }
++
++    function activateCurrent() {
++        var vs = views;
++        for (var i = 0; i < vs.length; i++) {
++            if (vs[i].activeFocus && vs[i].currentItem) {
++                if (vs[i] === categoriesGrid) {
++                    openCategory(categories[vs[i].currentIndex]);
++                } else {
++                    vs[i].currentItem.launch();
++                }
++                return;
++            }
++        }
++        // nada selecionado: abre o primeiro fixado
++        if (!showingCategory && pinnedGrid.count > 0) {
++            favoritesModel.trigger(0, "", null);
++            root.closeMenu();
 +        }
 +    }
 +
-+    // ── Lista de categorias ──────────────────────────────────────────────
-+    ListView {
-+        id: categoryListView
-+        visible: allAppsPage.showingCategories
-+        transform: Translate { id: catShift }
-+        Layout.fillWidth: true
-+        Layout.fillHeight: true
++    // Comportamento comum das vistas: setas saem para a vista vizinha nas
++    // bordas e a rolagem acompanha o item selecionado.
++    function handleEdgeKeys(view, event, cols) {
++        var i = views.indexOf(view);
++        if (event.key === Qt.Key_Down && view.currentIndex + cols >= view.count) {
++            event.accepted = true;
++            focusView(i + 1, false);
++        } else if (event.key === Qt.Key_Up && view.currentIndex - cols < 0) {
++            event.accepted = true;
++            focusView(i - 1, true);
++        }
++    }
++
++    function ensureVisible(item) {
++        if (!item) return;
++        var p = item.mapToItem(flickContent, 0, 0);
++        var margin = Kirigami.Units.largeSpacing;
++        if (p.y - margin < flick.contentY) {
++            flick.contentY = Math.max(0, p.y - margin);
++        } else if (p.y + item.height + margin > flick.contentY + flick.height) {
++            flick.contentY = Math.min(flick.contentHeight - flick.height, p.y + item.height + margin - flick.height);
++        }
++    }
++
++    // Recomendado: os 6 arquivos mais recentes
++    KItemModels.KSortFilterProxyModel {
++        id: recentDocs
++        filterRowCallback: (row, parent) => row < 6
++        function trigger(row, actionId, argument) {
++            var src = mapToSource(index(row, 0));
++            return src.valid && sourceModel ? sourceModel.trigger(src.row, actionId, argument) : false;
++        }
++    }
++
++    KItemModels.KSortFilterProxyModel {
++        id: categoryModel
++        sortRoleName: "display"
++        sortOrder: Qt.AscendingOrder
++        function trigger(row, actionId, argument) {
++            var src = mapToSource(index(row, 0));
++            return src.valid && sourceModel ? sourceModel.trigger(src.row, actionId, argument) : false;
++        }
++    }
++
++    ParallelAnimation {
++        id: slideAnim
++        property real fromX: 0
++        NumberAnimation { target: contentShift; property: "x"; from: slideAnim.fromX; to: 0; duration: 200; easing.type: Easing.OutCubic }
++        NumberAnimation { target: flickContent; property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutQuad }
++    }
++
++    Flickable {
++        id: flick
++        anchors.fill: parent
 +        clip: true
-+        spacing: Kirigami.Units.smallSpacing / 2
++        contentWidth: width
++        contentHeight: flickContent.implicitHeight
 +        boundsBehavior: Flickable.StopAtBounds
-+        currentIndex: -1
-+        model: allAppsPage.categories
-+        highlightMoveDuration: 0
++        Behavior on contentY { enabled: !flick.moving; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 +
 +        PlasmaComponents3.ScrollBar.vertical: PlasmaComponents3.ScrollBar {
 +            policy: PlasmaComponents3.ScrollBar.AsNeeded
 +        }
 +
-+        delegate: Item {
-+            id: catItem
-+            required property var modelData
-+            required property int index
-+            width: ListView.view.width
-+            height: Math.floor(Kirigami.Units.gridUnit * 1.5)
++        ColumnLayout {
++            id: flickContent
++            width: flick.width
++            spacing: Kirigami.Units.smallSpacing
++            transform: Translate { id: contentShift }
 +
-+            Rectangle {
-+                anchors.fill: parent
-+                radius: Kirigami.Units.smallSpacing
-+                color: Kirigami.Theme.hoverColor
-+                opacity: catMouse.containsMouse ? 1 : (catItem.ListView.isCurrentItem ? 0.6 : 0)
++            // ══ Página inicial ══════════════════════════════════════════
++            SectionHeader {
++                visible: !home.showingCategory
++                title: i18n("Pinned")
++                buttonText: pinnedGrid.count > home.columns * home.pinnedRows
++                            ? (home.pinnedExpanded ? i18n("Show less") : i18n("Show all")) : ""
++                buttonIcon: home.pinnedExpanded ? "go-up" : "go-next"
++                onButtonClicked: home.pinnedExpanded = !home.pinnedExpanded
 +            }
 +
-+            Row {
-+                anchors.verticalCenter: parent.verticalCenter
-+                anchors.left: parent.left
-+                anchors.right: parent.right
-+                anchors.leftMargin: Kirigami.Units.largeSpacing
-+                anchors.rightMargin: Kirigami.Units.largeSpacing
-+                spacing: Kirigami.Units.largeSpacing
++            GridView {
++                id: pinnedGrid
++                visible: !home.showingCategory
++                Layout.fillWidth: true
++                readonly property int rows: Math.ceil(count / home.columns)
++                Layout.preferredHeight: Math.max(1, home.pinnedExpanded ? rows : Math.min(rows, home.pinnedRows)) * cellHeight
++                cellWidth: home.cellWidth
++                cellHeight: home.cellHeight
++                interactive: false
++                clip: true
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: home.favoritesModel
++                delegate: AppTile {}
++                Behavior on Layout.preferredHeight { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 +
-+                Kirigami.Icon {
-+                    id: catIcon
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    width: Kirigami.Units.iconSizes.smallMedium
-+                    height: width
-+                    source: catItem.modelData.icon
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => {
++                    // a parte escondida (além das linhas visíveis) abre ao descer até ela
++                    if (event.key === Qt.Key_Down && !home.pinnedExpanded
++                            && currentIndex + home.columns >= home.columns * home.pinnedRows
++                            && currentIndex + home.columns < count) {
++                        home.pinnedExpanded = true;
++                    }
++                    home.handleEdgeKeys(pinnedGrid, event, home.columns);
 +                }
-+                PlasmaComponents3.Label {
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    width: parent.width - catIcon.width - catArrow.width - parent.spacing * 2
-+                    text: catItem.modelData.name
-+                    elide: Text.ElideRight
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
++            }
++
++            Text {
++                visible: !home.showingCategory && pinnedGrid.count === 0
++                Layout.fillWidth: true
++                Layout.preferredHeight: home.cellHeight
++                horizontalAlignment: Text.AlignHCenter
++                verticalAlignment: Text.AlignVCenter
++                color: Kirigami.Theme.disabledTextColor
++                font: Kirigami.Theme.defaultFont
++                wrapMode: Text.Wrap
++                text: i18n("Right-click an app and choose \"Add to Favorites\" to pin it here.")
++            }
++
++            SectionHeader {
++                visible: !home.showingCategory && recommendedGrid.count > 0
++                Layout.topMargin: Kirigami.Units.largeSpacing
++                title: i18n("Recommended")
++            }
++
++            GridView {
++                id: recommendedGrid
++                visible: !home.showingCategory && count > 0
++                Layout.fillWidth: true
++                Layout.preferredHeight: Math.ceil(count / 2) * cellHeight
++                cellWidth: Math.floor(width / 2)
++                cellHeight: Math.round(Kirigami.Units.gridUnit * 3.2)
++                interactive: false
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: recentDocs
++                delegate: RecommendedItem {}
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => home.handleEdgeKeys(recommendedGrid, event, 2)
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
++            }
++
++            SectionHeader {
++                visible: !home.showingCategory
++                Layout.topMargin: Kirigami.Units.largeSpacing
++                title: i18nc("@title start menu section with every application", "All")
++                buttonText: [i18n("Category"), i18n("Grid"), i18n("List")][home.viewMode]
++                buttonIcon: "go-down"
++                onButtonClicked: button => {
++                    var acts = [];
++                    var labels = [i18n("Category"), i18n("Grid"), i18n("List")];
++                    var icons = ["view-group", "view-grid", "view-list-details"];
++                    for (var i = 0; i < 3; i++) {
++                        acts.push({ text: labels[i], icon: home.viewMode === i ? "checkmark" : icons[i],
++                                    actionId: "_start_view_mode", actionArgument: { mode: i } });
++                    }
++                    var pos = button.mapToItem(sharedContextMenu, 0, button.height);
++                    sharedContextMenu.open(acts, pos.x, pos.y, {});
++                }
++            }
++
++            // ── Todos: categorias ──────────────────────────────────────────
++            GridView {
++                id: categoriesGrid
++                visible: !home.showingCategory && home.viewMode === 0
++                Layout.fillWidth: true
++                Layout.preferredHeight: Math.ceil(count / home.categoryColumns) * cellHeight
++                cellWidth: Math.floor(width / home.categoryColumns)
++                cellHeight: Math.round(cellWidth * 0.72) + Kirigami.Units.gridUnit * 1.8
++                interactive: false
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: home.categories
++                delegate: CategoryTile {
++                    onOpenRequested: home.openCategory(modelData)
++                }
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => {
++                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
++                        event.accepted = true;
++                        if (currentIndex >= 0) home.openCategory(home.categories[currentIndex]);
++                        return;
++                    }
++                    home.handleEdgeKeys(categoriesGrid, event, home.categoryColumns);
++                }
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
++            }
++
++            // ── Todos: grade A-Z ────────────────────────────────────────────
++            GridView {
++                id: allGrid
++                visible: !home.showingCategory && home.viewMode === 1
++                Layout.fillWidth: true
++                Layout.preferredHeight: Math.ceil(count / home.columns) * cellHeight
++                cellWidth: home.cellWidth
++                cellHeight: home.cellHeight
++                interactive: false
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: visible ? home.appsModel : null
++                delegate: AppTile {}
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => home.handleEdgeKeys(allGrid, event, home.columns)
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
++            }
++
++            // ── Todos: lista A-Z com as letras ──────────────────────────────
++            ListView {
++                id: allList
++                visible: !home.showingCategory && home.viewMode === 2
++                Layout.fillWidth: true
++                Layout.preferredHeight: contentHeight
++                interactive: false
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: visible ? home.appsModel : null
++                section.property: "display"
++                section.criteria: ViewSection.FirstCharacter
++                section.delegate: PlasmaComponents3.Label {
++                    required property string section
++                    width: ListView.view.width
++                    height: Math.round(Kirigami.Units.gridUnit * 1.8)
++                    leftPadding: Kirigami.Units.largeSpacing
++                    verticalAlignment: Text.AlignVCenter
++                    font.weight: Font.DemiBold
 +                    color: Kirigami.Theme.textColor
++                    text: section.toUpperCase()
 +                }
-+                Kirigami.Icon {
-+                    id: catArrow
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    width: Kirigami.Units.iconSizes.small
-+                    height: width
-+                    source: "go-next"
-+                    opacity: 0.6
++                delegate: ListItemDelegate {
++                    iconSize: Kirigami.Units.iconSizes.smallMedium
 +                }
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => home.handleEdgeKeys(allList, event, 1)
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
 +            }
 +
-+            MouseArea {
-+                id: catMouse
-+                anchors.fill: parent
-+                hoverEnabled: true
-+                onClicked: allAppsPage.openCategory(catItem.modelData)
++            // ══ Página de uma categoria ═════════════════════════════════
++            SectionHeader {
++                visible: home.showingCategory
++                title: home.categoryName
++                backButton: true
++                onBackClicked: home.closeCategory()
 +            }
++
++            GridView {
++                id: categoryGrid
++                visible: home.showingCategory
++                Layout.fillWidth: true
++                Layout.preferredHeight: Math.ceil(count / home.columns) * cellHeight
++                cellWidth: home.cellWidth
++                cellHeight: home.cellHeight
++                interactive: false
++                currentIndex: -1
++                highlightFollowsCurrentItem: false
++                model: categoryModel
++                delegate: AppTile {}
++                Keys.priority: Keys.BeforeItem
++                Keys.onPressed: event => home.handleEdgeKeys(categoryGrid, event, home.columns)
++                onCurrentItemChanged: if (activeFocus) home.ensureVisible(currentItem)
++                onActiveFocusChanged: if (!activeFocus) currentIndex = -1
++            }
++
++            Item { Layout.preferredHeight: Kirigami.Units.largeSpacing }
 +        }
-+
-+        Keys.onUpPressed: event => {
-+            if (currentIndex <= 0) {
-+                event.accepted = true;
-+                allAppsPage.keyNavUpFromList();
-+            }
-         }
-     }
- 
-     // ── All apps vertical list ───────────────────────────────────────────
-     ListView {
-         id: allAppsListView
-+        visible: !allAppsPage.showingCategories
-+        transform: Translate { id: appsShift }
-         Layout.fillWidth: true
-         Layout.fillHeight: true
-         clip: true
++    }
++}
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
-index d742aa4..f860a27 100644
+deleted file mode 100644
+index d742aa4..0000000
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
-+++ b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/PinnedPage.qml
-@@ -70,7 +70,7 @@ ColumnLayout {
-             buttonHeight: 25
-             flat: true
-             iconName: "go-next"
++++ /dev/null
+@@ -1,115 +0,0 @@
+-/***************************************************************************
+- *   License: GPL-3.0-or-later
+- *   Author: Jeysef
+- *
+- *   StartAllBack-style pinned page: a vertical list of favorite apps using
+- *   ListItemDelegate.  The "All apps >" header toggle asks the shell to
+- *   swap the left column to the full alphabetical list.
+- ***************************************************************************/
+-
+-import QtQuick
+-import QtQuick.Layouts
+-
+-import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.kirigami as Kirigami
+-
+-import "../components"
+-
+-ColumnLayout {
+-    id: pinnedPage
+-
+-    spacing: Kirigami.Units.largeSpacing
+-
+-    property alias favoritesList: favoritesListView
+-
+-    signal showAllAppsRequested
+-    signal keyNavUpFromList
+-
+-    function tryActivate(row) {
+-        if (favoritesListView.count > 0) {
+-            favoritesListView.currentIndex = Math.min(row, favoritesListView.count - 1);
+-        }
+-    }
+-
+-    function navigateUp() {
+-        if (favoritesListView.count > 0) {
+-            favoritesListView.currentIndex = Math.max(0, favoritesListView.currentIndex - 1);
+-        }
+-    }
+-
+-    function navigateDown() {
+-        if (favoritesListView.count > 0) {
+-            favoritesListView.currentIndex = Math.min(favoritesListView.count - 1, favoritesListView.currentIndex + 1);
+-        }
+-    }
+-
+-    function activateCurrent() {
+-        if (favoritesListView.currentIndex >= 0 && favoritesListView.model) {
+-            favoritesListView.model.trigger(favoritesListView.currentIndex, "", null);
+-            root.closeMenu();
+-        }
+-    }
+-
+-    // ── Header row: "Pinned" + spacer + "All apps >" ─────────────────────
+-    RowLayout {
+-        id: headerRow
+-        Layout.fillWidth: true
+-        spacing: Kirigami.Units.smallSpacing
+-
+-        PlasmaComponents3.Label {
+-            text: i18n("Pinned")
+-            color: Kirigami.Theme.textColor
+-            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 0.95
+-            font.weight: Font.DemiBold
+-            Layout.alignment: Qt.AlignVCenter
+-        }
+-
+-        Item { Layout.fillWidth: true }
+-
+-        AToolButton {
+-            buttonHeight: 25
+-            flat: true
+-            iconName: "go-next"
 -            text: i18n("All apps")
-+            text: i18n("Categories")
-             Layout.rightMargin: Kirigami.Units.mediumSpacing
-             onClicked: pinnedPage.showAllAppsRequested()
-         }
+-            Layout.rightMargin: Kirigami.Units.mediumSpacing
+-            onClicked: pinnedPage.showAllAppsRequested()
+-        }
+-    }
+-
+-    // ── Pinned favorites vertical list ──────────────────────────────────
+-    ListView {
+-        id: favoritesListView
+-        Layout.fillWidth: true
+-        Layout.fillHeight: true
+-        clip: true
+-        interactive: true
+-        spacing: Kirigami.Units.smallSpacing / 2
+-        boundsBehavior: Flickable.StopAtBounds
+-        currentIndex: -1
+-
+-        // Drag-reorder tracking.  draggingIndex is the index currently
+-        // being dragged (or -1); dropTargetIndex is where it would land
+-        // if released (or -1).  Delegates read these to show the drop
+-        // indicator and lift the dragged row.
+-        property int draggingIndex: -1
+-        property int dropTargetIndex: -1
+-
+-        PlasmaComponents3.ScrollBar.vertical: PlasmaComponents3.ScrollBar {
+-            policy: PlasmaComponents3.ScrollBar.AsNeeded
+-        }
+-
+-        delegate: ListItemDelegate {
+-            iconSize: Kirigami.Units.iconSizes.smallMedium
+-            dragEnabled: true
+-        }
+-
+-        highlightMoveDuration: 0
+-
+-        Keys.onUpPressed: event => {
+-            if (currentIndex <= 0) {
+-                event.accepted = true;
+-                pinnedPage.keyNavUpFromList();
+-            }
+-        }
+-    }
+-}
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml b/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml
 index e59c813..06b09f1 100644
 --- a/plasma/applets/org.kde.windowsmodern.startmenu/contents/ui/pages/SearchPage.qml

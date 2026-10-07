@@ -9,8 +9,9 @@ Deixa o **KDE Plasma 6** com a cara do **Windows 11** — no modo escuro.
 Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (temas,
 ícones, menu Iniciar, tela de bloqueio) numa versão fixa e acrescenta:
 
-- **Menu Iniciar** que abre direto nas categorias (Jogos, Internet…), com "Fixado >",
-  animações, tradução pt-BR e "Editar aplicativo…" funcionando na pesquisa.
+- **Menu Iniciar** no layout novo do Windows 11: pesquisa no topo, Fixado em grade,
+  Recomendado (arquivos recentes) e Todos em Categoria, Grade ou Lista; conta, pastas e
+  energia no rodapé. Com animações, tradução pt-BR e "Editar aplicativo…" na pesquisa.
 - **Relógio** igual ao do Windows: hora e data do mesmo tamanho, Segoe UI, AM/PM.
 - **Bandeja** com a seta `^` à esquerda e a ordem normal dos ícones, **arrastar e soltar**
   para reordenar e **"Alterar ícone…"** no botão direito.

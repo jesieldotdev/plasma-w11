@@ -164,3 +164,43 @@ msgstr "Todos os aplicativos"
 msgid "Categories"
 msgstr "Categorias"
 
+
+msgid "Search for apps, settings, and documents"
+msgstr "Pesquise aplicativos, configurações e documentos"
+
+msgid "Show all"
+msgstr "Mostrar tudo"
+
+msgid "Show less"
+msgstr "Mostrar menos"
+
+msgid "Recommended"
+msgstr "Recomendado"
+
+msgctxt "@title start menu section with every application"
+msgid "All"
+msgstr "Todos"
+
+msgid "Grid"
+msgstr "Grade"
+
+msgid "List"
+msgstr "Lista"
+
+msgid "Move to front"
+msgstr "Mover para o início"
+
+msgid "Right-click an app and choose \"Add to Favorites\" to pin it here."
+msgstr "Clique com o botão direito num aplicativo e escolha \"Fixar em Iniciar\" para ele aparecer aqui."
+
+msgid "File Explorer"
+msgstr "Explorador de Arquivos"
+
+msgid "Power"
+msgstr "Energia"
+
+msgid "Videos"
+msgstr "Vídeos"
+
+msgid "Network"
+msgstr "Rede"
