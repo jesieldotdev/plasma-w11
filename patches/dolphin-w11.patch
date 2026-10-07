@@ -21,7 +21,7 @@ index 319c551..e857db8 100644
      panels/folders/foldersitemlistwidget.h
      panels/folders/treeviewcontextmenu.h
 diff --git a/src/dolphinmainwindow.cpp b/src/dolphinmainwindow.cpp
-index a29fe0d..f6c5104 100644
+index a29fe0d..47fa268 100644
 --- a/src/dolphinmainwindow.cpp
 +++ b/src/dolphinmainwindow.cpp
 @@ -24,6 +24,7 @@
@@ -41,10 +41,26 @@ index a29fe0d..f6c5104 100644
  #include <KConfigGui>
  #include <KDesktopFile>
  #include <KDialogJobUiDelegate>
-@@ -232,6 +235,31 @@ DolphinMainWindow::DolphinMainWindow()
+@@ -78,6 +81,7 @@
+ 
+ #include <QApplication>
+ #include <QClipboard>
++#include <QWidgetAction>
+ #include <QCloseEvent>
+ #include <QDesktopServices>
+ #include <QDialog>
+@@ -232,6 +236,59 @@ DolphinMainWindow::DolphinMainWindow()
          }
      }
  
++    // plasma-w11: nomes da barra de comandos como no Explorador
++    for (const auto &[name, text] : {std::pair{"new_menu", "Novo"}, std::pair{"sort", "Classificar"}, std::pair{"view_mode", "Visualizar"}}) {
++        if (QAction *action = actionCollection()->action(QLatin1String(name))) {
++            action->setText(QString::fromUtf8(text));
++            action->setIconText(QString::fromUtf8(text));
++        }
++    }
++
 +    // plasma-w11: na primeira vez, o painel de navegação substitui Locais e Pastas
 +    {
 +        KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("PlasmaW11"));
@@ -60,6 +76,26 @@ index a29fe0d..f6c5104 100644
 +            group.writeEntry("NavigationPanelSetup", true);
 +            group.sync();
 +        }
++        // barras do Explorador: comandos em cima, endereço e pesquisa embaixo
++        if (group.readEntry("ToolbarsSetup", 0) < 2) { // 2: com a barra de pesquisa à direita
++            KToolBar *commands = toolBar(QStringLiteral("commandToolBar"));
++            KToolBar *address = toolBar(QStringLiteral("mainToolBar"));
++            KToolBar *search = toolBar(QStringLiteral("searchToolBar"));
++            if (commands && address && search) {
++                for (KToolBar *bar : {commands, address, search}) {
++                    removeToolBar(bar);
++                }
++                addToolBar(Qt::TopToolBarArea, commands);
++                addToolBarBreak(Qt::TopToolBarArea);
++                addToolBar(Qt::TopToolBarArea, address);
++                addToolBar(Qt::TopToolBarArea, search);
++                for (KToolBar *bar : {commands, address, search}) {
++                    bar->show();
++                }
++            }
++            group.writeEntry("ToolbarsSetup", 2);
++            group.sync();
++        }
 +        // painel de visualização à direita (prévia e detalhes do arquivo selecionado)
 +        if (!group.readEntry("PreviewPanelSetup", false)) {
 +            if (auto *dock = findChild<QDockWidget *>(QStringLiteral("infoDock"))) {
@@ -73,7 +109,61 @@ index a29fe0d..f6c5104 100644
      QAction *showMenuBarAction = actionCollection()->action(KStandardAction::name(KStandardAction::ShowMenubar));
      showMenuBarAction->setChecked(!menuBar()->isHidden()); //workaround for bug #171080
      QTimer::singleShot(0, this, [this, showMenuBarAction]() {
-@@ -2495,6 +2523,21 @@ void DolphinMainWindow::setupDockWidgets()
+@@ -1786,6 +1843,53 @@ void DolphinMainWindow::setupActions()
+ {
+     auto hamburgerMenuAction = KStandardAction::hamburgerMenu(nullptr, nullptr, actionCollection());
+ 
++    // plasma-w11: caixa "Pesquisar <pasta>" sempre visível, como no Explorador do Windows
++    {
++        auto *searchBox = new QLineEdit(this);
++        searchBox->setClearButtonEnabled(true);
++        searchBox->setMinimumWidth(220);
++        searchBox->setMaximumWidth(320);
++        searchBox->addAction(QIcon::fromTheme(QStringLiteral("search")), QLineEdit::LeadingPosition);
++        auto *searchBoxAction = new QWidgetAction(this);
++        searchBoxAction->setText(QStringLiteral("Caixa de pesquisa"));
++        searchBoxAction->setDefaultWidget(searchBox);
++        actionCollection()->addAction(QStringLiteral("w11_search_box"), searchBoxAction);
++
++        // espaçador que empurra atualizar/pesquisa para a ponta direita da linha do endereço
++        auto *spacer = new QWidget(this);
++        spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
++        auto *spacerAction = new QWidgetAction(this);
++        spacerAction->setText(QStringLiteral("Espaço flexível"));
++        spacerAction->setDefaultWidget(spacer);
++        actionCollection()->addAction(QStringLiteral("w11_toolbar_spacer"), spacerAction);
++        connect(searchBox, &QLineEdit::textEdited, this, [this](const QString &text) {
++            if (m_activeViewContainer) {
++                m_activeViewContainer->searchFor(text);
++            }
++        });
++        connect(searchBox, &QLineEdit::returnPressed, this, [this, searchBox]() {
++            if (m_activeViewContainer) {
++                m_activeViewContainer->searchFor(searchBox->text());
++            }
++        });
++        connect(this, &DolphinMainWindow::urlChanged, searchBox, [searchBox](const QUrl &url) {
++            if (url.scheme().contains(QLatin1String("search")) || url.scheme() == QLatin1String("baloosearch")
++                || url.scheme() == QLatin1String("filenamesearch")) {
++                return; // resultados da pesquisa: mantém o texto
++            }
++            searchBox->clear();
++            QString name = url.fileName();
++            if (url.scheme() == QLatin1String("thispc")) {
++                name = QStringLiteral("Este Computador");
++            } else if (url.isLocalFile() && url.path() == QLatin1String("/")) {
++                name = QStringLiteral("Disco Local");
++            } else if (name.isEmpty()) {
++                name = url.toDisplayString(QUrl::PreferLocalFile);
++            }
++            searchBox->setPlaceholderText(QStringLiteral("Pesquisar %1").arg(name));
++        });
++    }
++
+     // setup 'File' menu
+     m_newFileMenu = new DolphinNewFileMenu(nullptr, nullptr, this);
+     actionCollection()->addAction(QStringLiteral("new_menu"), m_newFileMenu);
+@@ -2495,6 +2599,21 @@ void DolphinMainWindow::setupDockWidgets()
          foldersDock->hide();
      }
  
@@ -96,7 +186,7 @@ index a29fe0d..f6c5104 100644
      DolphinDockWidget *placesDock = new DolphinDockWidget(i18nc("@title:window", "Places"));
      placesDock->setLocked(lock);
 diff --git a/src/dolphinviewcontainer.cpp b/src/dolphinviewcontainer.cpp
-index 968919b..2691119 100644
+index 968919b..5357010 100644
 --- a/src/dolphinviewcontainer.cpp
 +++ b/src/dolphinviewcontainer.cpp
 @@ -5,6 +5,7 @@
@@ -128,6 +218,37 @@ index 968919b..2691119 100644
      m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
      if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
          m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
+@@ -325,6 +340,16 @@ void DolphinViewContainer::disconnectUrlNavigator()
+     m_urlNavigatorConnected = nullptr;
+ }
+ 
++void DolphinViewContainer::searchFor(const QString &term)
++{
++    if (term.isEmpty()) {
++        setSearchBarVisible(false);
++        return;
++    }
++    setSearchBarVisible(true);
++    m_searchBar->setSearchTerm(term);
++}
++
+ void DolphinViewContainer::setSearchBarVisible(bool visible)
+ {
+     if (!visible) {
+diff --git a/src/dolphinviewcontainer.h b/src/dolphinviewcontainer.h
+index 9c6dbb6..e968c0f 100644
+--- a/src/dolphinviewcontainer.h
++++ b/src/dolphinviewcontainer.h
+@@ -149,6 +149,9 @@ public:
+      */
+     void setSearchBarVisible(bool visible);
+ 
++    /** plasma-w11: pesquisa @p term na pasta atual (vazio fecha a pesquisa). */
++    void searchFor(const QString &term);
++
+     /** @returns true if the search bar is visible while not being in the process to hide itself. */
+     bool isSearchBarVisible() const;
+ 
 diff --git a/src/panels/navigation/navigationpanel.cpp b/src/panels/navigation/navigationpanel.cpp
 new file mode 100644
 index 0000000..65ed3ad
@@ -716,6 +837,40 @@ index 0000000..d5e34de
 +};
 +
 +#endif
+diff --git a/src/search/bar.cpp b/src/search/bar.cpp
+index 7e31cb0..206efbc 100644
+--- a/src/search/bar.cpp
++++ b/src/search/bar.cpp
+@@ -181,6 +181,15 @@ void Bar::setSearchPath(const QUrl &url)
+     updateStateToMatch(std::make_shared<const DolphinQuery>(std::move(searchConfigurationCopy)));
+ }
+ 
++void Bar::setSearchTerm(const QString &term)
++{
++    if (m_searchTermEditor->text() == term) {
++        return;
++    }
++    m_searchTermEditor->setText(term);
++    slotSearchTermEdited(term);
++}
++
+ void Bar::selectAll()
+ {
+     m_searchTermEditor->setFocus();
+diff --git a/src/search/bar.h b/src/search/bar.h
+index 1017d81..19b45eb 100644
+--- a/src/search/bar.h
++++ b/src/search/bar.h
+@@ -86,6 +86,9 @@ public:
+      */
+     void selectAll();
+ 
++    /** plasma-w11: busca o texto digitado na caixa de pesquisa da barra de ferramentas. */
++    void setSearchTerm(const QString &term);
++
+     /**
+      * All showing and hiding of this bar is supposed to go through this method. When hiding this bar, it emits all the necessary signals to restore the view
+      * container to a non-search URL.
 diff --git a/src/views/thispcpage.cpp b/src/views/thispcpage.cpp
 new file mode 100644
 index 0000000..a63327e

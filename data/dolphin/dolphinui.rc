@@ -106,21 +106,44 @@
             <Action name="invert_selection" />
         </disable>
     </State>
-    <ToolBar noMerge="1" name="mainToolBar" >
+    <!-- Barra de comandos do Explorador do Windows 11:
+         Novo | recortar copiar colar renomear excluir | Classificar | Visualizar | ⋯ -->
+    <ToolBar noMerge="1" name="commandToolBar" iconText="textbesideicon" iconSize="16" >
+        <text>Barra de comandos</text>
+        <Action name="new_menu" />
+        <Separator />
+        <Action name="edit_cut" />
+        <Action name="edit_copy" />
+        <Action name="edit_paste" />
+        <Action name="renamefile" />
+        <Action name="movetotrash" />
+        <Separator />
+        <Action name="sort" />
+        <Action name="view_mode" />
+        <Separator />
+        <Action name="hamburger_menu" />
+    </ToolBar>
+    <!-- Barra de endereço: voltar, avançar, acima e o caminho -->
+    <ToolBar noMerge="1" name="mainToolBar" iconText="icononly" iconSize="16" newline="true" >
         <text context="@title:menu">Main Toolbar</text>
-        <!-- Como o Explorador do Windows 11: voltar, avançar, acima, caminho, atualizar, pesquisa, painel de visualização -->
         <Action name="go_back" />
         <Action name="go_forward" />
         <Action name="go_up" />
         <Action name="url_navigators" />
+    </ToolBar>
+    <!-- à direita do endereço (barra separada: o caminho ocupa a barra inteira e empurraria isto para fora) -->
+    <ToolBar noMerge="1" name="searchToolBar" iconText="icononly" iconSize="16" >
+        <text>Pesquisa</text>
+        <Action name="w11_toolbar_spacer" />
         <Action name="view_redisplay" />
-        <Action name="toggle_search" />
+        <Action name="w11_search_box" />
         <Action name="show_information_panel" />
-        <Action name="hamburger_menu" />
     </ToolBar>
     <ActionProperties scheme="Default">
         <!-- só o ícone, como o ⟳ do Explorador -->
         <Action priority="0" name="view_redisplay"/>
+        <Action priority="0" name="renamefile"/>
+        <Action priority="0" name="movetotrash"/>
         <Action priority="0" name="show_information_panel"/>
         <Action priority="0" name="go_back"/>
         <Action priority="0" name="go_forward"/>
@@ -130,7 +153,6 @@
         <Action priority="0" name="icons"/>
         <Action priority="0" name="compact"/>
         <Action priority="0" name="details"/>
-        <Action priority="0" name="view_mode" />
         <Action priority="0" name="view_settings" />
         <Action priority="0" name="view_zoom_in"/>
         <Action priority="0" name="view_zoom_reset"/>
