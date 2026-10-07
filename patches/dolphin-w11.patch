@@ -122,10 +122,10 @@ index 968919b..2691119 100644
          m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
 diff --git a/src/panels/navigation/navigationpanel.cpp b/src/panels/navigation/navigationpanel.cpp
 new file mode 100644
-index 0000000..8c492cf
+index 0000000..65ed3ad
 --- /dev/null
 +++ b/src/panels/navigation/navigationpanel.cpp
-@@ -0,0 +1,509 @@
+@@ -0,0 +1,515 @@
 +/*
 + * Painel de navegação no estilo do Explorador do Windows 11 (plasma-w11).
 + *
@@ -348,10 +348,16 @@ index 0000000..8c492cf
 +    selected.setAlphaF(0.14);
 +    pal.setColor(QPalette::Highlight, selected);
 +    pal.setColor(QPalette::HighlightedText, pal.color(QPalette::Text));
-+    // fundo transparente: a margem e a árvore ficam da mesma cor (sem cara de borda)
++    // painel um pouco mais escuro que a área principal, como no Explorador
++    // (árvore transparente sobre o fundo do painel: a margem não vira borda)
++    const QColor panelColor = palette().color(QPalette::Window).darker(124);
 +    pal.setColor(QPalette::Base, Qt::transparent);
 +    m_view->setPalette(pal);
 +    m_view->viewport()->setAutoFillBackground(false);
++    QPalette panelPal = palette();
++    panelPal.setColor(QPalette::Window, panelColor);
++    setPalette(panelPal);
++    setAutoFillBackground(true);
 +    m_view->viewport()->installEventFilter(this);
 +
 +    auto *layout = new QVBoxLayout(this);
@@ -704,10 +710,10 @@ index 0000000..d5e34de
 +#endif
 diff --git a/src/views/thispcpage.cpp b/src/views/thispcpage.cpp
 new file mode 100644
-index 0000000..6adbac6
+index 0000000..a63327e
 --- /dev/null
 +++ b/src/views/thispcpage.cpp
-@@ -0,0 +1,375 @@
+@@ -0,0 +1,376 @@
 +/*
 + * Página "Este Computador" no estilo do Windows 11 (plasma-w11).
 + *
@@ -815,7 +821,7 @@ index 0000000..6adbac6
 +
 +    QSize sizeHint() const override
 +    {
-+        return QSize(ColumnWidth - 12, isDrive() ? 64 : 44);
++        return QSize(ColumnWidth - 12, 60);
 +    }
 +
 +protected:
@@ -833,7 +839,7 @@ index 0000000..6adbac6
 +            p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
 +        }
 +
-+        const int iconSize = isDrive() ? 48 : 32;
++        const int iconSize = 48;
 +        const int pad = 8;
 +        icon.paint(&p, QRect(pad, (height() - iconSize) / 2, iconSize, iconSize));
 +        const int x = pad + iconSize + 10;
@@ -842,8 +848,9 @@ index 0000000..6adbac6
 +        QFont font = this->font();
 +        p.setPen(text);
 +        if (!isDrive()) {
++            // nome no alto, ao lado do ícone, como no Explorador
 +            p.setFont(font);
-+            p.drawText(QRect(x, 0, textWidth, height()), Qt::AlignVCenter | Qt::AlignLeft,
++            p.drawText(QRect(x, (height() - iconSize) / 2 + 2, textWidth, fontMetrics().height()), Qt::AlignTop | Qt::AlignLeft,
 +                       fontMetrics().elidedText(title, Qt::ElideRight, textWidth));
 +            return;
 +        }
