@@ -65,6 +65,10 @@ def icon_for(name):
     if n.startswith('brightness') or n.startswith('video-display-brightness') or n.startswith('display-brightness') \
             or n == 'high-brightness': return svg([(0xE706, 1)])
     if n == 'klipper': return svg([(0xE77F, 1)])
+    # microfone (bloco "Microfone" das configurações rápidas): ligado / cortado
+    if re.fullmatch(r'(microphone-sensitivity|audio-input-microphone)-muted', n): return svg([(0xF781, 1)], [0xE720, 0xF781])
+    if re.fullmatch(r'microphone-sensitivity-(high|medium|low)|audio-input-microphone(-high|-medium|-low)?', n):
+        return svg([(0xE720, 1)], [0xE720, 0xF781])
     # Na tomada a bateria do Plasma mostra o perfil de energia; o Windows mostra a bateria carregando
     if n.startswith('battery-profile') or n.startswith('power-profile'): return bat(100, True)
     if n.startswith('redshift-status-on') or n == 'night-light': return svg([(0xE708, 1)])
@@ -82,6 +86,10 @@ extra = ['power-profile-performance-symbolic', 'power-profile-balanced-symbolic'
          'media-playback-paused', 'media-playback-pause', 'media-playback-pause-symbolic', 'night-light', 'night-light-disabled',
          'network-offline', 'network-wireless-disconnected', 'device-notifier', 'video-display-brightness',
          'video-display-brightness-symbolic', 'audio-volume-low-zero', 'audio-volume-low-zero-symbolic']
+extra += [f'{base}{suf}' for base in ('microphone-sensitivity-high', 'microphone-sensitivity-medium',
+                                      'microphone-sensitivity-low', 'microphone-sensitivity-muted',
+                                      'audio-input-microphone', 'audio-input-microphone-muted')
+          for suf in ('', '-symbolic')]
 count = 0
 for name in sorted(set(names + extra)):
     s = icon_for(name)
