@@ -2782,11 +2782,143 @@ index bd04add..ee46770 100644
      <entry name="reverseIconOrder" type="bool">
        <label>Whether to reverse the order of icons in the panel</label>
        <default>false</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml
+index 903d546..e4c2373 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/AbstractItem.qml
+@@ -98,19 +98,17 @@ PlasmaCore.ToolTipArea {
+         }
+     }
+ 
+-    // Win11-styled card background for hidden layout
++    // Caixa da seta ^ (Windows 11): só o ícone, com fundo arredondado no hover
+     Rectangle {
+         visible: abstractItem.inHiddenLayout
+         anchors.fill: parent
+         radius: 4
+-        border.width: 1
+-        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
+         color: {
+             if (mouseArea.containsPress)
+                 return Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.10);
+             if (mouseArea.containsMouse)
+                 return Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06);
+-            return Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.04);
++            return "transparent";
+         }
+         Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
+         z: -1
+@@ -118,7 +116,7 @@ PlasmaCore.ToolTipArea {
+ 
+     ColumnLayout {
+         anchors.fill: abstractItem
+-        anchors.margins: abstractItem.inHiddenLayout ? 10 : 0
++        anchors.margins: 0
+         spacing: 0
+ 
+         FocusScope {
+@@ -158,17 +156,11 @@ PlasmaCore.ToolTipArea {
+             property alias inVisibleLayout: abstractItem.inVisibleLayout
+             readonly property int size: abstractItem.inVisibleLayout ? root.itemSize : Kirigami.Units.iconSizes.smallMedium
+ 
+-            Layout.alignment: abstractItem.inHiddenLayout
+-                ? Qt.AlignLeft | Qt.AlignTop
+-                : Qt.AlignHCenter | Qt.AlignVCenter
++            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+             implicitWidth: root.vertical && abstractItem.inVisibleLayout ? abstractItem.width : size
+             implicitHeight: !root.vertical && abstractItem.inVisibleLayout ? abstractItem.height : size
+         }
+ 
+-        Item {
+-            Layout.fillHeight: true
+-            visible: abstractItem.inHiddenLayout
+-        }
+ 
+         PlasmaComponents3.Label {
+             id: label
+@@ -176,7 +168,8 @@ PlasmaCore.ToolTipArea {
+             Layout.fillWidth: true
+             maximumLineCount: abstractItem.maxTextLines
+ 
+-            visible: abstractItem.inHiddenLayout
++            // sem nome embaixo do ícone: o nome aparece na dica
++            visible: false
+ 
+             horizontalAlignment: Text.AlignLeft
+             verticalAlignment: Text.AlignBottom
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
+index 24c4c3f..6bb5f4a 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
+@@ -21,17 +21,23 @@ import "components" as Components
+ Item {
+     id: popup
+ 
+-    // Width: pinned to 360px
+-    Layout.minimumWidth: 360
+-    Layout.maximumWidth: 360
++    // Width: pinned to 360px; a caixa de ícones extras (seta ^) é estreita
++    readonly property bool overflowOnly: systemTrayState.overflowMode && !systemTrayState.activeApplet
++    readonly property int overflowColumns: Math.max(1, Math.min(5, root.hiddenLayout.itemCount))
++    readonly property int overflowRows: Math.max(1, Math.ceil(root.hiddenLayout.itemCount / overflowColumns))
++    readonly property int overflowCell: Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.largeSpacing * 2
++    Layout.minimumWidth: overflowOnly ? overflowColumns * overflowCell : 360
++    Layout.maximumWidth: overflowOnly ? overflowColumns * overflowCell : 360
+ 
+     // Height: action panel mode is taller (gridUnit*36); flyouts stay at
+     // gridUnit*24. updateMinSize() grows to the minimum, updateMaxSize()
+     // shrinks to the maximum — both bypass the saved-size flag.
+-    Layout.minimumHeight: systemTrayState.activeApplet
++    Layout.minimumHeight: overflowOnly ? overflowRows * overflowCell
++        : systemTrayState.activeApplet
+         ? Kirigami.Units.gridUnit * 24
+         : Kirigami.Units.gridUnit * 36
+-    Layout.maximumHeight: systemTrayState.activeApplet
++    Layout.maximumHeight: overflowOnly ? overflowRows * overflowCell
++        : systemTrayState.activeApplet
+         ? Kirigami.Units.gridUnit * 24
+         : -1 // no cap for action panel
+ 
+@@ -54,7 +60,7 @@ Item {
+         if (!pluginId) return
+         const applet = Plasmoid.appletForPluginId(pluginId)
+         if (applet) {
+-            systemTrayState.setActiveApplet(applet)
++            systemTrayState.openPage(applet)
+         }
+     }
+ 
+@@ -224,8 +230,7 @@ Item {
+                 id: hiddenItemsView
+                 Layout.fillWidth: true
+                 Layout.fillHeight: true
+-                Layout.topMargin: Kirigami.Units.smallSpacing
+-                visible: root.hiddenLayout.itemCount > 0
++                visible: popup.overflowOnly && root.hiddenLayout.itemCount > 0
+                 KeyNavigation.up: pinButton
+                 onVisibleChanged: {
+                     if (visible) {
+@@ -237,6 +242,7 @@ Item {
+ 
+             ActionPanel {
+                 id: actionPanel
++                visible: !popup.overflowOnly
+                 Layout.fillWidth: true
+                 onRequestPage: name => popup.activateFlyout(name)
+             }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
-index 5e67066..2f0c20b 100644
+index 5e67066..3870ac2 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
-@@ -76,9 +76,11 @@ PlasmaCore.ToolTipArea {
+@@ -47,6 +47,7 @@ PlasmaCore.ToolTipArea {
+             }
+         }
+         onTapped: (eventPoint, button) => {
++            systemTrayState.overflowMode = !tooltip.wasExpanded;
+             systemTrayState.expanded = !tooltip.wasExpanded;
+             expandedRepresentation.hiddenLayout.currentIndex = -1;
+         }
+@@ -76,9 +77,11 @@ PlasmaCore.ToolTipArea {
              } else if (Plasmoid.location === PlasmaCore.Types.RightEdge) {
                  return "arrow-left-symbolic";
              } else {
@@ -2799,7 +2931,7 @@ index 5e67066..2f0c20b 100644
      }
  
      Kirigami.Icon {
-@@ -105,8 +107,9 @@ PlasmaCore.ToolTipArea {
+@@ -105,8 +108,9 @@ PlasmaCore.ToolTipArea {
              } else if (Plasmoid.location === PlasmaCore.Types.RightEdge) {
                  return "arrow-right-symbolic";
              } else {
@@ -2836,6 +2968,26 @@ index 7504c55..d26edbf 100644
      }
  
      function isThemedApplet(applet) {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
+index 64108fe..da4e5ad 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/HiddenItemsView.qml
+@@ -24,12 +24,13 @@ PlasmaComponents3.ScrollView {
+     GridView {
+         id: hiddenTasks
+ 
+-        readonly property int columns: 3
++        // só ícones, até 5 por linha (caixa da seta ^ do Windows 11)
++        readonly property int columns: Math.max(1, Math.min(5, itemCount))
+ 
+         readonly property int cellSpacing: Kirigami.Units.smallSpacing
+ 
+         cellWidth: Math.floor(hiddenTasksView.availableWidth / columns)
+-        cellHeight: Math.floor(cellWidth / 1.4)
++        cellHeight: cellWidth
+ 
+         currentIndex: -1
+         highlight: PlasmaExtras.Highlight {}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
 index c9053d5..b70abcb 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/PlasmoidPopupsContainer.qml
@@ -2853,6 +3005,66 @@ index c9053d5..b70abcb 100644
              const comp = themedPages[name]
              if (comp) {
                  (mainStack.empty ? mainStack.push : mainStack.replace)(comp, {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/SystemTrayState.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/SystemTrayState.qml
+index 2ba5c32..c1299a4 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/SystemTrayState.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/SystemTrayState.qml
+@@ -29,6 +29,39 @@ QtObject {
+     property int oldVisualIndex: -1
+     property int newVisualIndex: -1
+ 
++    // Como no Windows 11: a seta ^ abre só a caixa com os ícones extras...
++    property bool overflowMode: false
++    // ...e som, rede e bateria abrem as configurações rápidas, não a página
++    // própria (que continua acessível pela setinha > do painel).
++    readonly property var quickSettingsPlugins: ["org.kde.plasma.volume", "org.kde.plasma.networkmanagement", "org.kde.plasma.battery"]
++    property bool openingPage: false
++
++    function openPage(applet) {
++        openingPage = true
++        setActiveApplet(applet)
++        openingPage = false
++    }
++
++    function appletRequested(applet, visualIndex) {
++        const name = applet && applet.plasmoid ? applet.plasmoid.pluginName : ""
++        if (openingPage || quickSettingsPlugins.indexOf(name) === -1) {
++            setActiveApplet(applet, visualIndex)
++            return
++        }
++        applet.expanded = false
++        if (expanded && !activeApplet && !overflowMode) {
++            expanded = false
++            return
++        }
++        if (activeApplet) {
++            const old = activeApplet
++            activeApplet = null
++            old.expanded = false
++        }
++        overflowMode = false
++        expanded = true
++    }
++
+     function setActiveApplet(applet, visualIndex) {
+ 
+         // Applets which prefer to always show their full
+@@ -57,6 +90,7 @@ QtObject {
+         }
+ 
+         if (applet && !applet.preferredRepresentation) {
++            overflowMode = false
+             expanded = true
+         }
+     }
+@@ -66,6 +100,7 @@ QtObject {
+             Plasmoid.status = PlasmaCore.Types.RequiresAttentionStatus
+         } else {
+             Plasmoid.status = PlasmaCore.Types.PassiveStatus;
++            overflowMode = false
+             if (activeApplet) {
+                 // if not expanded we don't have an active applet anymore
+                 activeApplet.expanded = false
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 index 720a05b..ba5e77d 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
@@ -3072,7 +3284,7 @@ index 71df315..6b8a172 100644
      readonly property bool sourceAvailable: source && !(source.name === "auto_null")
  
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
-index 1380039..0c15c91 100644
+index 1380039..d090767 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 @@ -26,7 +26,7 @@ ContainmentItem {
@@ -3111,6 +3323,24 @@ index 1380039..0c15c91 100644
      KItemModels.KSortFilterProxyModel {
          id: activeModel
          filterRoleName: "effectiveStatus"
+@@ -85,7 +105,7 @@ ContainmentItem {
+             target: applet
+             function onExpandedChanged(expanded: bool) {
+                 if (expanded) {
+-                    systemTrayState.setActiveApplet(applet, row)
++                    systemTrayState.appletRequested(applet, row)
+                 }
+             }
+         }
+@@ -101,7 +121,7 @@ ContainmentItem {
+             target: applet
+             function onExpandedChanged(expanded: bool) {
+                 if (expanded) {
+-                    systemTrayState.setActiveApplet(applet, row)
++                    systemTrayState.appletRequested(applet, row)
+                 }
+             }
+         }
 @@ -179,7 +199,7 @@ ContainmentItem {
                  id: tasksGrid
  
@@ -3162,6 +3392,28 @@ index 1380039..0c15c91 100644
  
                  Layout.fillWidth: vertical
                  Layout.fillHeight: !vertical
+@@ -289,7 +335,8 @@ ContainmentItem {
+                 default:
+                     return Qt.TopEdge
+             }
+-            margin: (Plasmoid.containmentDisplayHints & PlasmaCore.Types.ContainmentPrefersFloatingApplets) ? Kirigami.Units.largeSpacing : 0
++            // Como no Windows 11: o painel flutua com uma margem acima da barra.
++            margin: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
+ 
+             Behavior on margin {
+                 NumberAnimation {
+@@ -303,9 +350,8 @@ ContainmentItem {
+ 
+             floating: Plasmoid.location == PlasmaCore.Desktop
+ 
+-            removeBorderStrategy: Plasmoid.location === PlasmaCore.Types.Floating
+-                ? PlasmaCore.AppletPopup.AtScreenEdges
+-                : PlasmaCore.AppletPopup.AtScreenEdges | PlasmaCore.AppletPopup.AtPanelEdges
++            // flutuando, não encosta em nada: bordas arredondadas dos quatro lados
++            removeBorderStrategy: PlasmaCore.AppletPopup.Never
+ 
+ 
+             hideOnWindowDeactivate: !Plasmoid.configuration.pin
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp b/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp
 index 0e2c55d..da1313e 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/sortedsystemtraymodel.cpp
