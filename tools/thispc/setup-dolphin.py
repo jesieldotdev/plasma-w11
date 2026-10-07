@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Deixa o Dolphin como o Explorador do Windows 11 abrindo em "Este Computador".
 
-- painel lateral: "Este Computador" (thispc:/) logo depois de "Início";
+- painel lateral compacto (ícones de 16 px), sem Recentes/Etiquetas/Pesquisar por,
+  com "Este Computador" (thispc:/) depois das pastas, como no Windows;
+- barra de ferramentas do Explorador (← → ↑, caminho, atualizar, pesquisa) e
+  barra de status em largura total;
 - o Dolphin abre sempre em thispc:/ (sem restaurar as abas da última vez);
 - exibição de thispc:/: ícones com miniaturas, agrupado por tipo (Pastas /
   Unidades e dispositivos). Para isso o Dolphin precisa lembrar a exibição
@@ -9,11 +12,12 @@
   continuam começando com a exibição global de antes.
 Pode rodar de novo sem duplicar nada.
 """
-import base64, hashlib, os, subprocess
+import base64, hashlib, os, shutil, subprocess
 import xml.etree.ElementTree as ET
 
 HOME = os.path.expanduser('~')
 URL = 'thispc:/'
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def kw(group, key, value):
@@ -30,20 +34,39 @@ def places():
         ET.register_namespace(k, v)
     tree = ET.parse(path)
     root = tree.getroot()
-    if any(b.get('href') == URL for b in root.iter('bookmark')):
-        return
-    bm = ET.Element('bookmark', href=URL)
-    ET.SubElement(bm, 'title').text = 'Este Computador'
-    info = ET.SubElement(bm, 'info')
-    meta = ET.SubElement(info, 'metadata', owner='http://freedesktop.org')
-    ET.SubElement(meta, '{%s}icon' % ns['bookmark'], name='computer')
-    meta2 = ET.SubElement(info, 'metadata', owner='http://www.kde.org')
-    ET.SubElement(meta2, 'ID').text = 'thispc-este-computador'
-    children = list(root)
-    home = next((i for i, b in enumerate(children)
-                 if b.tag == 'bookmark' and b.get('href') == 'file://' + HOME), None)
-    root.insert(home + 1 if home is not None else len(children), bm)
+    # grupos que o Explorador não tem
+    info0 = root.find('info')
+    meta0 = info0.find('metadata') if info0 is not None else None
+    if meta0 is not None:
+        for group in ('RecentlySaved', 'Tags', 'SearchFor'):
+            tag = f'GroupState-{group}-IsHidden'
+            el = meta0.find(tag)
+            if el is None:
+                el = ET.SubElement(meta0, tag)
+            el.text = 'true'
+    bm = next((b for b in root.findall('bookmark') if b.get('href') == URL), None)
+    if bm is not None:
+        root.remove(bm)  # reposiciona (versões antigas punham logo depois de Início)
+    else:
+        bm = ET.Element('bookmark', href=URL)
+        ET.SubElement(bm, 'title').text = 'Este Computador'
+        info = ET.SubElement(bm, 'info')
+        meta = ET.SubElement(info, 'metadata', owner='http://freedesktop.org')
+        ET.SubElement(meta, '{%s}icon' % ns['bookmark'], name='computer')
+        meta2 = ET.SubElement(info, 'metadata', owner='http://www.kde.org')
+        ET.SubElement(meta2, 'ID').text = 'thispc-este-computador'
+    place_after_folders(root, bm)
     tree.write(path, encoding='utf-8', xml_declaration=True)
+
+
+def place_after_folders(root, bm):
+    """Depois da última pasta da pasta pessoal (Vídeos...), antes da Lixeira."""
+    children = list(root)
+    last = None
+    for i, b in enumerate(children):
+        if b.tag == 'bookmark' and (b.get('href') or '').startswith('file://' + HOME):
+            last = i
+    root.insert(last + 1 if last is not None else len(children), bm)
 
 
 def view_props():
@@ -60,6 +83,11 @@ def view_props():
 kw('General', 'GlobalViewProps', 'false')
 kw('General', 'HomeUrl', URL)
 kw('General', 'RememberOpenedTabs', 'false')
+kw('General', 'ShowStatusBar', '1')          # largura total, como o Explorador
+kw('PlacesPanel', 'IconSize', '16')
+ui = f'{HOME}/.local/share/kxmlgui5/dolphin'
+os.makedirs(ui, exist_ok=True)
+shutil.copy(os.path.join(HERE, '..', '..', 'data', 'dolphin', 'dolphinui.rc'), f'{ui}/dolphinui.rc')
 places()
 view_props()
 print('Dolphin configurado: abre em Este Computador')
