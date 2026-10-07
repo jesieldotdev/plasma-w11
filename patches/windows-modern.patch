@@ -2956,18 +2956,21 @@ index 903d546..e4c2373 100644
              horizontalAlignment: Text.AlignLeft
              verticalAlignment: Text.AlignBottom
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
-index 4e8c2f6..9e8515f 100644
+index 4e8c2f6..c1f7a5c 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ActionPanel.qml
-@@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
+@@ -8,8 +8,10 @@ pragma ComponentBehavior: Bound
  
  import QtQuick
  import QtQuick.Layouts
 +import QtQuick.Window
  
  import org.kde.plasma.plasmoid
++import org.kde.kirigami as Kirigami
  
-@@ -18,12 +19,35 @@ ColumnLayout {
+ import "components" as Components
+ 
+@@ -18,12 +20,51 @@ ColumnLayout {
  
      signal requestPage(string name)
  
@@ -2988,7 +2991,22 @@ index 4e8c2f6..9e8515f 100644
 +        }
 +    }
 +
++    // Windows 11: a página entra deslizando da direita; ao voltar, os botões vêm da esquerda
++    onLocalPageChanged: localPage === "" ? gridsIn.restart() : pageIn.restart()
++    ParallelAnimation {
++        id: pageIn
++        NumberAnimation { target: pageShift; property: "x"; from: Kirigami.Units.gridUnit * 2; to: 0; duration: 250; easing.type: Easing.OutCubic }
++        NumberAnimation { target: projectPage; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++    }
++    ParallelAnimation {
++        id: gridsIn
++        NumberAnimation { targets: [tilesShift, slidersShift]; property: "x"; from: -Kirigami.Units.gridUnit * 2; to: 0; duration: 250; easing.type: Easing.OutCubic }
++        NumberAnimation { targets: [tilesGrid, slidersGrid]; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++    }
++
 +    Components.ProjectPage {
++        id: projectPage
++        transform: Translate { id: pageShift }
 +        visible: actionPanel.localPage === "project"
 +        Layout.fillWidth: true
 +        // mesma altura dos botões e sliders: o painel não pula ao trocar
@@ -2998,12 +3016,13 @@ index 4e8c2f6..9e8515f 100644
 +
      GridLayout {
 +        id: tilesGrid
++        transform: Translate { id: tilesShift }
 +        visible: actionPanel.localPage === ""
 +        onHeightChanged: if (visible) actionPanel.gridsHeight = height + slidersGrid.height + actionPanel.spacing
          Layout.fillWidth: true
          Layout.leftMargin: 14 * actionPanel.scale
          Layout.rightMargin: 14 * actionPanel.scale
-@@ -69,9 +93,16 @@ ColumnLayout {
+@@ -69,9 +110,17 @@ ColumnLayout {
              Layout.fillWidth: true
              visible: Plasmoid.configuration.showHotspot
          }
@@ -3016,6 +3035,7 @@ index 4e8c2f6..9e8515f 100644
  
      GridLayout {
 +        id: slidersGrid
++        transform: Translate { id: slidersShift }
 +        visible: actionPanel.localPage === ""
          Layout.fillWidth: true
          Layout.leftMargin: 14 * actionPanel.scale
