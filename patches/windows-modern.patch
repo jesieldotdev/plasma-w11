@@ -2884,7 +2884,7 @@ index c1bf279..7a2a227 100644
          let prefix;
          switch (location) {
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
-index 24c4c3f..e90e71b 100644
+index 24c4c3f..43f7497 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpandedRepresentation.qml
 @@ -21,19 +21,28 @@ import "components" as Components
@@ -2932,7 +2932,21 @@ index 24c4c3f..e90e71b 100644
          }
      }
  
-@@ -224,8 +233,7 @@ Item {
+@@ -220,12 +229,21 @@ Item {
+             visible: !systemTrayState.activeApplet
+             spacing: 0
+ 
++            // Windows 11: voltar de uma página traz as configurações rápidas da esquerda
++            transform: Translate { id: panelShift }
++            onVisibleChanged: if (visible && pageWasOpen) { panelIn.restart(); pageWasOpen = false }
++            property bool pageWasOpen: false
++            ParallelAnimation {
++                id: panelIn
++                NumberAnimation { target: panelShift; property: "x"; from: -Kirigami.Units.gridUnit * 2; to: 0; duration: 250; easing.type: Easing.OutCubic }
++                NumberAnimation { target: actionPanelMode; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++            }
++
+             HiddenItemsView {
                  id: hiddenItemsView
                  Layout.fillWidth: true
                  Layout.fillHeight: true
@@ -2942,7 +2956,7 @@ index 24c4c3f..e90e71b 100644
                  KeyNavigation.up: pinButton
                  onVisibleChanged: {
                      if (visible) {
-@@ -237,9 +245,33 @@ Item {
+@@ -237,9 +255,33 @@ Item {
  
              ActionPanel {
                  id: actionPanel
@@ -2976,6 +2990,26 @@ index 24c4c3f..e90e71b 100644
          }
  
          // Container for the active applet (themed or unknown)
+@@ -251,7 +293,18 @@ Item {
+             Layout.topMargin: mergeHeadings ? 0 : dialog.topPadding
+             KeyNavigation.up: pinButton
+             KeyNavigation.backtab: pinButton
+-            onVisibleChanged: if (visible) forceActiveFocus()
++            // Windows 11: a página entra deslizando da direita
++            transform: Translate { id: pageShift }
++            onVisibleChanged: if (visible) {
++                forceActiveFocus()
++                actionPanelMode.pageWasOpen = true
++                pageIn.restart()
++            }
++            ParallelAnimation {
++                id: pageIn
++                NumberAnimation { target: pageShift; property: "x"; from: Kirigami.Units.gridUnit * 2; to: 0; duration: 250; easing.type: Easing.OutCubic }
++                NumberAnimation { target: container; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++            }
+         }
+     }
+ 
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
 index 5e67066..3870ac2 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/ExpanderArrow.qml
@@ -3805,7 +3839,7 @@ index 2e986b3..b9426ef 100644
 +    tooltipText: muted ? i18n("Microphone — Muted") : i18n("Microphone — Active")
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
-index 6207b8b..3b7506b 100644
+index 6207b8b..89f6181 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/NetworkPage.qml
 @@ -5,17 +5,18 @@ import org.kde.plasma.networkmanagement as PlasmaNM
@@ -3873,7 +3907,25 @@ index 6207b8b..3b7506b 100644
      listView.spacing: 2
  
      listView.delegate: Item {
-@@ -60,6 +95,8 @@ Lib.DetailPage {
+@@ -55,11 +90,26 @@ Lib.DetailPage {
+         width: listView.width
+         height: container.height + 2
+ 
++        // entrada em cascata: cada linha sobe e aparece um pouco depois da anterior
++        opacity: 0
++        transform: Translate { id: enterShift; y: 8 }
++        Component.onCompleted: enterAnim.start()
++        SequentialAnimation {
++            id: enterAnim
++            PauseAnimation { duration: Math.max(0, Math.min(index, 10)) * 30 }
++            ParallelAnimation {
++                NumberAnimation { target: delegate; property: "opacity"; to: 1; duration: 200; easing.type: Easing.OutQuad }
++                NumberAnimation { target: enterShift; property: "y"; to: 0; duration: 260; easing.type: Easing.OutCubic }
++            }
++        }
++
+         readonly property bool predictableWirelessPassword: !Uuid && Type === PlasmaNM.Enums.Wireless &&
+             (SecurityType === PlasmaNM.Enums.StaticWep ||
               SecurityType === PlasmaNM.Enums.WpaPsk ||
               SecurityType === PlasmaNM.Enums.Wpa2Psk ||
               SecurityType === PlasmaNM.Enums.SAE)
@@ -3882,7 +3934,7 @@ index 6207b8b..3b7506b 100644
  
          property int connectionState: ConnectionState
          property bool expanded: false
-@@ -67,21 +104,13 @@ Lib.DetailPage {
+@@ -67,21 +117,13 @@ Lib.DetailPage {
          property string password: ""
          property bool showPassword: false
  
@@ -3910,7 +3962,7 @@ index 6207b8b..3b7506b 100644
              return "";
          }
  
-@@ -90,6 +119,11 @@ Lib.DetailPage {
+@@ -90,6 +132,11 @@ Lib.DetailPage {
                  expanded = false;
                  phase = "idle";
              } else {
@@ -3922,7 +3974,7 @@ index 6207b8b..3b7506b 100644
                  expanded = true;
                  phase = (connectionState === PlasmaNM.Enums.Activating) ? "connecting" : "idle";
              }
-@@ -98,7 +132,8 @@ Lib.DetailPage {
+@@ -98,7 +145,8 @@ Lib.DetailPage {
          function doConnect() {
              if (predictableWirelessPassword) {
                  phase = "password";
@@ -3932,7 +3984,7 @@ index 6207b8b..3b7506b 100644
                  handler.addAndActivateConnection(DevicePath, SpecificPath);
                  phase = "connecting";
              } else {
-@@ -110,6 +145,7 @@ Lib.DetailPage {
+@@ -110,6 +158,7 @@ Lib.DetailPage {
          function doNext() {
              handler.addAndActivateConnection(DevicePath, SpecificPath, password);
              phase = "connecting";
@@ -3940,7 +3992,7 @@ index 6207b8b..3b7506b 100644
          }
  
          function doDisconnect() {
-@@ -118,32 +154,43 @@ Lib.DetailPage {
+@@ -118,32 +167,43 @@ Lib.DetailPage {
          }
  
          onConnectionStateChanged: {
@@ -3968,13 +4020,13 @@ index 6207b8b..3b7506b 100644
  
 +            // tracinho azul na rede conectada, como o item selecionado do Windows
 +            Rectangle {
-+                visible: delegate.connected
 +                anchors.left: parent.left
-+                y: 14
 +                width: 3
-+                height: 16
++                height: delegate.connected ? 16 : 0
++                y: 22 - height / 2
 +                radius: 1.5
 +                color: Kirigami.Theme.highlightColor
++                Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            }
 +
              ColumnLayout {
@@ -3991,7 +4043,7 @@ index 6207b8b..3b7506b 100644
  
                      MouseArea {
                          id: headerMA
-@@ -155,15 +202,32 @@ Lib.DetailPage {
+@@ -155,15 +215,32 @@ Lib.DetailPage {
  
                      RowLayout {
                          anchors.fill: parent
@@ -4031,7 +4083,7 @@ index 6207b8b..3b7506b 100644
                          }
  
                          ColumnLayout {
-@@ -174,144 +238,94 @@ Lib.DetailPage {
+@@ -174,144 +251,99 @@ Lib.DetailPage {
                                  Layout.fillWidth: true
                                  text: model.ItemUniqueName
                                  color: Kirigami.Theme.textColor
@@ -4092,10 +4144,16 @@ index 6207b8b..3b7506b 100644
 -                        spacing: 0
 -
 -                        Item { Layout.fillWidth: true; Layout.preferredHeight: 8 }
-+                        spacing: 8
- 
+-
 -                        // Idle: Connect button
 -                        ColumnLayout {
++                        spacing: 8
++                        // o conteúdo aparece e desce um pouco enquanto a linha abre
++                        opacity: delegate.expanded ? 1 : 0
++                        transform: Translate { y: delegate.expanded ? 0 : -6
++                            Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } } }
++                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutQuad } }
++
 +                        // desconectada: Conectar (destaque)
 +                        RowLayout {
                              Layout.fillWidth: true
@@ -4214,7 +4272,7 @@ index 6207b8b..3b7506b 100644
                                          hoverEnabled: true
                                          cursorShape: Qt.PointingHandCursor
                                          onClicked: delegate.showPassword = !delegate.showPassword
-@@ -322,130 +336,76 @@ Lib.DetailPage {
+@@ -322,130 +354,76 @@ Lib.DetailPage {
                              RowLayout {
                                  Layout.fillWidth: true
                                  spacing: 8
