@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# plasma-w11: faz o painel, a bandeja e o menu Iniciar trocarem de cor na hora
+# quando a cor de destaque muda (pelas Configurações ou pelo papel de parede).
+#
+# Quem troca a cor grava o kdeglobals em etapas e avisa (KGlobalSettings.notifyChange)
+# no meio delas; o plasmashell redesenha com o que leu naquele instante e fica com a
+# cor anterior. Aqui esperamos a gravação terminar e repetimos o aviso.
+set -u
+
+now_ms() { date +%s%3N; }
+ignore_until=0
+
+# Apps em widgets (Dolphin, Configurações) usam a cor do Kvantum, que é fixa no tema:
+# mantemos uma cópia do Windows-modern ("Windows-11") com a cor de destaque no lugar do azul.
+# O Kvantum só lê o tema ao abrir o app, então eles mudam quando forem abertos de novo.
+KV="${XDG_CONFIG_HOME:-$HOME/.config}/Kvantum"
+sync_kvantum() {
+    local src="$KV/Windows-modern" dst="$KV/Windows-11" rgb hex
+    [ -d "$src" ] || return 0
+    rgb=$(kreadconfig6 --file kdeglobals --group General --key AccentColor)
+    [ -n "$rgb" ] && hex=$(printf '#%02X%02X%02X' ${rgb//,/ }) || hex="#4CC2FF"
+    [ "$(cat "$dst/.destaque" 2>/dev/null)" = "$hex" ] && return 0
+    mkdir -p "$dst"
+    sed "s/#4CC2FF/$hex/Ig" "$src/Windows-modernDark.kvconfig" > "$dst/Windows-11Dark.kvconfig"
+    sed "s/#4CC2FF/$hex/Ig" "$src/Windows-modernDark.svg" > "$dst/Windows-11Dark.svg"
+    sed "s/#0067C0/$hex/Ig" "$src/Windows-modern.kvconfig" > "$dst/Windows-11.kvconfig"
+    sed "s/#0067C0/$hex/Ig" "$src/Windows-modern.svg" > "$dst/Windows-11.svg"
+    echo "$hex" > "$dst/.destaque"
+    [ "$(kreadconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme)" = Windows-11 ] \
+        || kwriteconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme Windows-11
+}
+sync_kvantum
+
+dbus-monitor --session "type='signal',interface='org.kde.KGlobalSettings',member='notifyChange'" 2>/dev/null |
+while read -r line; do
+    case $line in
+        *member=notifyChange*) ;;
+        *) continue ;;
+    esac
+    # o eco do nosso próprio aviso
+    [ "$(now_ms)" -lt "$ignore_until" ] && continue
+    # espera os avisos (e a gravação) pararem
+    while read -r -t 1 _; do :; done
+    ignore_until=$(( $(now_ms) + 1500 ))
+    dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0
+    sync_kvantum
+done

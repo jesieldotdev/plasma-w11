@@ -31,6 +31,10 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
   módulos em QML (Configurações, Discover, Bluetooth…) com o visual do Windows. É um
   estilo do Qt Quick (`org.kde.w11`, em `style/`); o que ele não cobre usa o do KDE.
   Vale a partir do próximo login.
+- **Cor de destaque em tudo**: painel, bandeja, menu Iniciar, controles e apps seguem a
+  cor de destaque do sistema — inclusive a automática, tirada do papel de parede — e
+  trocam na hora (os apps em widgets, como o Dolphin, ao serem reabertos). Escolha em
+  Configurações › Personalização › Cores.
 - **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
   alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
   barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,

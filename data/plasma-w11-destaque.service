@@ -1,0 +1,12 @@
+[Unit]
+Description=plasma-w11: painel e bandeja acompanham a cor de destaque na hora
+PartOf=graphical-session.target
+After=plasma-plasmashell.service
+
+[Service]
+ExecStart=@BIN@/acompanhar-destaque
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=plasma-workspace.target

@@ -189,6 +189,13 @@ for t in icones-painel barra-de-tarefas; do
 done
 kbuildsycoca6 >/dev/null 2>&1 || true
 
+# ── 8b. cor de destaque: painel, bandeja e apps acompanham na hora (inclusive a do papel de parede) ─
+install -m 755 "$HERE/tools/acompanhar-destaque" "$BIN/acompanhar-destaque"
+mkdir -p "$HOME/.config/systemd/user"
+sed "s|@BIN@|$BIN|" "$HERE/data/plasma-w11-destaque.service" > "$HOME/.config/systemd/user/plasma-w11-destaque.service"
+systemctl --user daemon-reload 2>/dev/null || true
+systemctl --user enable --now plasma-w11-destaque.service >/dev/null 2>&1 || true
+
 # ── 9. aplicar ───────────────────────────────────────────────────────
 info "Aplicando o visual"
 plasma-apply-lookandfeel -a org.kde.windowsmodern.dark --resetLayout >/dev/null

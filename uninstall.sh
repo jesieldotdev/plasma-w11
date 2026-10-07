@@ -17,6 +17,14 @@ info "Restaurando $(readlink -f "$BK")"
 bash "$BK/restore.sh"
 # o estilo dos controles QML deixa de valer na próxima sessão
 rm -f "$HOME/.config/plasma-workspace/env/plasma-w11-qml-style.sh"
+# cor de destaque: para o serviço e devolve o tema original do Kvantum
+systemctl --user disable --now plasma-w11-destaque.service >/dev/null 2>&1 || true
+rm -f "$HOME/.config/systemd/user/plasma-w11-destaque.service" "$BIN/acompanhar-destaque"
+KV="$HOME/.config/Kvantum"
+if [ "$(kreadconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme 2>/dev/null)" = Windows-11 ]; then
+    kwriteconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme Windows-modern
+fi
+rm -rf "$KV/Windows-11"
 
 if [ "$PURGE" = 1 ]; then
     info "Apagando os arquivos instalados"
