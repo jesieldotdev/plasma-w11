@@ -21,7 +21,7 @@ index 319c551..e857db8 100644
      panels/folders/foldersitemlistwidget.h
      panels/folders/treeviewcontextmenu.h
 diff --git a/src/dolphinmainwindow.cpp b/src/dolphinmainwindow.cpp
-index a29fe0d..47fa268 100644
+index a29fe0d..92ff43b 100644
 --- a/src/dolphinmainwindow.cpp
 +++ b/src/dolphinmainwindow.cpp
 @@ -24,6 +24,7 @@
@@ -49,7 +49,7 @@ index a29fe0d..47fa268 100644
  #include <QCloseEvent>
  #include <QDesktopServices>
  #include <QDialog>
-@@ -232,6 +236,59 @@ DolphinMainWindow::DolphinMainWindow()
+@@ -232,6 +236,64 @@ DolphinMainWindow::DolphinMainWindow()
          }
      }
  
@@ -64,16 +64,19 @@ index a29fe0d..47fa268 100644
 +    // plasma-w11: na primeira vez, o painel de navegação substitui Locais e Pastas
 +    {
 +        KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("PlasmaW11"));
-+        if (!group.readEntry("NavigationPanelSetup", false)) {
++        // 2: também encaixa de volta painéis que ficaram soltos ("Desbloquear painéis")
++        if (group.readEntry("NavigationPanelSetup", 0) < 2) {
 +            for (const char *name : {"placesDock", "foldersDock"}) {
 +                if (auto *dock = findChild<QDockWidget *>(QLatin1String(name))) {
 +                    dock->hide();
 +                }
 +            }
 +            if (auto *dock = findChild<QDockWidget *>(QStringLiteral("navigationDock"))) {
++                dock->setFloating(false);
++                addDockWidget(Qt::LeftDockWidgetArea, dock);
 +                dock->show();
 +            }
-+            group.writeEntry("NavigationPanelSetup", true);
++            group.writeEntry("NavigationPanelSetup", 2);
 +            group.sync();
 +        }
 +        // barras do Explorador: comandos em cima, endereço e pesquisa embaixo
@@ -97,11 +100,13 @@ index a29fe0d..47fa268 100644
 +            group.sync();
 +        }
 +        // painel de visualização à direita (prévia e detalhes do arquivo selecionado)
-+        if (!group.readEntry("PreviewPanelSetup", false)) {
++        if (group.readEntry("PreviewPanelSetup", 0) < 2) {
 +            if (auto *dock = findChild<QDockWidget *>(QStringLiteral("infoDock"))) {
++                dock->setFloating(false);
++                addDockWidget(Qt::RightDockWidgetArea, dock);
 +                dock->show();
 +            }
-+            group.writeEntry("PreviewPanelSetup", true);
++            group.writeEntry("PreviewPanelSetup", 2);
 +            group.sync();
 +        }
 +    }
@@ -109,7 +114,7 @@ index a29fe0d..47fa268 100644
      QAction *showMenuBarAction = actionCollection()->action(KStandardAction::name(KStandardAction::ShowMenubar));
      showMenuBarAction->setChecked(!menuBar()->isHidden()); //workaround for bug #171080
      QTimer::singleShot(0, this, [this, showMenuBarAction]() {
-@@ -1786,6 +1843,53 @@ void DolphinMainWindow::setupActions()
+@@ -1786,6 +1848,53 @@ void DolphinMainWindow::setupActions()
  {
      auto hamburgerMenuAction = KStandardAction::hamburgerMenu(nullptr, nullptr, actionCollection());
  
@@ -163,7 +168,17 @@ index a29fe0d..47fa268 100644
      // setup 'File' menu
      m_newFileMenu = new DolphinNewFileMenu(nullptr, nullptr, this);
      actionCollection()->addAction(QStringLiteral("new_menu"), m_newFileMenu);
-@@ -2495,6 +2599,21 @@ void DolphinMainWindow::setupDockWidgets()
+@@ -2326,6 +2435,9 @@ void DolphinMainWindow::setupActions()
+ 
+ void DolphinMainWindow::setupDockWidgets()
+ {
++    // plasma-w11: painéis sempre travados ao abrir, como no Explorador (soltos,
++    // eles podem ser arrastados para fora e sumir)
++    GeneralSettings::setLockPanels(true);
+     const bool lock = GeneralSettings::lockPanels();
+ 
+     DolphinPlacesModelSingleton::instance().placesModel()->setPanelsLocked(lock);
+@@ -2495,6 +2607,20 @@ void DolphinMainWindow::setupDockWidgets()
          foldersDock->hide();
      }
  
@@ -173,7 +188,6 @@ index a29fe0d..47fa268 100644
 +    navigationDock->setObjectName(QStringLiteral("navigationDock"));
 +    navigationDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 +    NavigationPanel *navigationPanel = new NavigationPanel(navigationDock);
-+    navigationPanel->setCustomContextMenuActions({lockLayoutAction});
 +    navigationDock->setWidget(navigationPanel);
 +    createPanelAction(QIcon::fromTheme(QStringLiteral("view-list-tree")), Qt::Key_F8, navigationDock, QStringLiteral("show_navigation_panel"));
 +    addDockWidget(Qt::LeftDockWidgetArea, navigationDock);
