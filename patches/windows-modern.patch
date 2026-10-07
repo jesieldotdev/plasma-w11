@@ -2767,6 +2767,18 @@ index e59c813..06b09f1 100644
  
                      var appActs = Tools.buildAppActions(i18n, favModel,
                                                          entry.favoriteId,
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
+index 401727e..815a620 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/CMakeLists.txt
+@@ -162,6 +162,7 @@ ecm_target_qml_sources(org.kde.windowsmodern.systemtray
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Tile.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/SplitTile.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Slider.qml
++        ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/ToggleSwitch.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/SectionHeader.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/PageHeader.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/contents/ui/lib/Page.qml
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
 index bd04add..ee46770 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/config/main.xml
@@ -3101,6 +3113,19 @@ index 2ba5c32..c1299a4 100644
              if (activeApplet) {
                  // if not expanded we don't have an active applet anymore
                  activeApplet.expanded = false
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
+index bda5919..8c913a3 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BatteryPage.qml
+@@ -257,7 +257,7 @@ Lib.Page {
+                 Layout.fillWidth: true
+             }
+ 
+-            PlasmaComponents3.Switch {
++            Lib.ToggleSwitch {
+                 checked: page.blockSleep
+                 onToggled: page._toggleBlockSleep()
+             }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
 index 720a05b..ba5e77d 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/VolumePage.qml
@@ -3319,6 +3344,123 @@ index 71df315..6b8a172 100644
      readonly property var source: Vol.PreferredDevice.source
      readonly property bool sourceAvailable: source && !(source.name === "auto_null")
  
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml
+index fc6d900..1b4d84e 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/PageHeader.qml
+@@ -49,7 +49,7 @@ RowLayout {
+         Layout.fillWidth: true
+     }
+ 
+-    PlasmaComponents3.Switch {
++    ToggleSwitch {
+         visible: header.showSwitch
+         checked: header.switchChecked
+         onToggled: header.switchToggled()
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Slider.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Slider.qml
+index 08391c5..744290d 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Slider.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Slider.qml
+@@ -73,6 +73,49 @@ Item {
+             Binding {
+                 root.pressed: slider.pressed
+             }
++
++            // Visual do Windows 11: trilho de 4 px arredondado, parte cheia na cor
++            // de destaque e botão redondo com o miolo colorido.
++            background: Item {
++                x: slider.leftPadding
++                y: slider.topPadding + slider.availableHeight / 2 - height / 2
++                width: slider.availableWidth
++                height: 4
++                implicitWidth: 200
++                implicitHeight: 4
++
++                Rectangle {
++                    anchors.fill: parent
++                    radius: height / 2
++                    color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.45)
++                }
++                Rectangle {
++                    width: slider.handle.x + slider.handle.width / 2 - slider.leftPadding
++                    height: parent.height
++                    radius: height / 2
++                    color: Kirigami.Theme.highlightColor
++                }
++            }
++
++            handle: Rectangle {
++                x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
++                y: slider.topPadding + slider.availableHeight / 2 - height / 2
++                implicitWidth: 20
++                implicitHeight: 20
++                radius: width / 2
++                color: Qt.tint(Kirigami.Theme.backgroundColor, Qt.rgba(1, 1, 1, 0.08))
++                border.width: 1
++                border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
++
++                Rectangle {
++                    anchors.centerIn: parent
++                    width: slider.pressed ? 10 : (slider.hovered ? 14 : 12)
++                    height: width
++                    radius: width / 2
++                    color: Kirigami.Theme.highlightColor
++                    Behavior on width { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
++                }
++            }
+         }
+ 
+         Item {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ToggleSwitch.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ToggleSwitch.qml
+new file mode 100644
+index 0000000..2e90dff
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ToggleSwitch.qml
+@@ -0,0 +1,44 @@
++import QtQuick
++import org.kde.kirigami as Kirigami
++import org.kde.plasma.components as PlasmaComponents3
++
++// Chave no estilo do Windows 11: pílula de 40x20; desligada, só o contorno e
++// a bolinha; ligada, cheia na cor de destaque com a bolinha escura. A bolinha
++// cresce no hover e estica ao pressionar, como no Windows.
++PlasmaComponents3.Switch {
++    id: control
++
++    text: ""
++    spacing: 0
++    padding: 0
++
++    indicator: Rectangle {
++        implicitWidth: 40
++        implicitHeight: 20
++        x: control.leftPadding
++        y: control.topPadding + control.availableHeight / 2 - height / 2
++        radius: height / 2
++        color: control.checked
++            ? (control.hovered ? Qt.lighter(Kirigami.Theme.highlightColor, 1.1) : Kirigami.Theme.highlightColor)
++            : (control.hovered ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06) : "transparent")
++        border.width: control.checked ? 0 : 1
++        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.65)
++        opacity: control.enabled ? 1 : 0.4
++        Behavior on color { ColorAnimation { duration: 100 } }
++
++        Rectangle {
++            readonly property real size: control.hovered ? 14 : 12
++            width: control.pressed ? size + 3 : size
++            height: size
++            radius: height / 2
++            anchors.verticalCenter: parent.verticalCenter
++            x: control.checked ? parent.width - width - 4 : 4
++            color: control.checked ? Kirigami.Theme.backgroundColor : Kirigami.Theme.textColor
++            Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
++            Behavior on width { NumberAnimation { duration: 100 } }
++            Behavior on height { NumberAnimation { duration: 100 } }
++        }
++    }
++
++    contentItem: Item {}
++}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
 index 1380039..6eedd15 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/main.qml
