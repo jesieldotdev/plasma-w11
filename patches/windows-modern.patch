@@ -3047,7 +3047,7 @@ index 5e67066..3870ac2 100644
      }
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
-index 7504c55..83aa472 100644
+index 7504c55..1b28f29 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/FlyoutRouter.qml
 @@ -23,10 +23,19 @@ Item {
@@ -3056,7 +3056,7 @@ index 7504c55..83aa472 100644
  
 +    // Páginas temáticas em uso. As outras ainda não foram revisadas e ficam
 +    // com o popup padrão do Plasma.
-+    readonly property var enabledPages: ["volume", "network"]
++    readonly property var enabledPages: ["volume", "network", "bluetooth"]
 +
 +    // A propriedade anexada `Plasmoid` não é acessível por uma referência a
 +    // outro item no Qt 6 (applet.Plasmoid é sempre undefined); o PlasmoidItem
@@ -3336,7 +3336,7 @@ index 73e39a1..3e8255a 100644
      }
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
-index 256dc7f..f5cae74 100644
+index 256dc7f..a7edb7f 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
 @@ -10,12 +10,12 @@ import "../lib" as Lib
@@ -3355,24 +3355,261 @@ index 256dc7f..f5cae74 100644
          onClicked: KCMLauncher.openSystemSettings("kcm_bluetooth")
      }
  
-@@ -35,7 +35,7 @@ Lib.DetailPage {
-     listView.header: PlasmaComponents3.Button {
-         width: listView.width
-         height: 32
--        text: qsTr("Add new device")
-+        text: i18n("Add new device")
-         icon.name: "list-add"
-         flat: true
-         visible: page.btOn
-@@ -106,7 +106,7 @@ Lib.DetailPage {
-                     }
+@@ -32,15 +32,19 @@ Lib.DetailPage {
  
-                     PlasmaComponents3.Label {
+     onSwitchToggled: page.toggleBluetooth()
+ 
+-    listView.header: PlasmaComponents3.Button {
++    // "Adicionar dispositivo" no topo, como botão do Windows
++    listView.header: Item {
+         width: listView.width
+-        height: 32
+-        text: qsTr("Add new device")
+-        icon.name: "list-add"
+-        flat: true
++        height: page.btOn ? 44 : 0
+         visible: page.btOn
+-
+-        onClicked: bluetoothExec.exec("bluedevil-wizard")
++        Lib.WinButton {
++            anchors.left: parent.left
++            anchors.leftMargin: 8
++            anchors.verticalCenter: parent.verticalCenter
++            text: i18n("Add new device")
++            iconName: "list-add"
++            onClicked: bluetoothExec.exec("bluedevil-wizard")
++        }
+     }
+ 
+     Plasma5Support.DataSource {
+@@ -55,61 +59,184 @@ Lib.DetailPage {
+         }
+     }
+ 
++    // Só os emparelhados, conectados primeiro (como no Windows)
+     listView.model: btManager.devices
++        .filter(d => d.paired)
++        .sort((x, y) => (y.connected - x.connected) || x.name.localeCompare(y.name))
++    listView.spacing: 2
++
+     listView.delegate: Item {
++        id: delegate
++        required property var modelData
++        required property int index
++        readonly property var device: modelData
++
+         width: listView.width
+-        height: 34
++        height: container.height + 2
++
++        property bool expanded: false
++        property string phase: "idle"   // idle | connecting | failed
++
++        readonly property int battery: device.battery ? device.battery.percentage : -1
++
++        function statusText() {
++            if (phase === "connecting") return i18n("Connecting…");
++            if (phase === "failed") return i18n("Couldn't connect");
++            if (device.connected) return battery >= 0 ? i18n("Connected · %1%", battery) : i18n("Connected");
++            return i18n("Paired");
++        }
++
++        function toggleExpand() {
++            if (!expanded) {
++                for (let i = 0; i < listView.count; ++i) {
++                    const other = listView.itemAtIndex(i);
++                    if (other && other !== delegate) other.expanded = false;
++                }
++            }
++            expanded = !expanded;
++        }
++
++        function toggleConnection() {
++            if (device.connected) {
++                device.disconnectFromDevice();
++                return;
++            }
++            phase = "connecting";
++            const call = device.connectToDevice();
++            call.finished.connect(() => { phase = call.error ? "failed" : "idle"; });
++        }
++
++        Connections {
++            target: delegate.device
++            function onConnectedChanged() { if (delegate.device.connected) delegate.phase = "idle"; }
++        }
++
++        // entrada em cascata
++        opacity: 0
++        transform: Translate { id: enterShift; y: 8 }
++        Component.onCompleted: enterAnim.start()
++        SequentialAnimation {
++            id: enterAnim
++            PauseAnimation { duration: Math.max(0, Math.min(delegate.index, 10)) * 30 }
++            ParallelAnimation {
++                NumberAnimation { target: delegate; property: "opacity"; to: 1; duration: 200; easing.type: Easing.OutQuad }
++                NumberAnimation { target: enterShift; property: "y"; to: 0; duration: 260; easing.type: Easing.OutCubic }
++            }
++        }
+ 
+         Rectangle {
+-            anchors.fill: parent
+-            anchors.margins: 1
++            id: container
++            anchors.left: parent.left
++            anchors.right: parent.right
++            anchors.leftMargin: 4
++            anchors.rightMargin: 4
++            height: contentLayout.implicitHeight
+             radius: 4
+-            color: ma.containsMouse ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08) : "transparent"
+-
+-            MouseArea {
+-                id: ma
+-                anchors.fill: parent
+-                hoverEnabled: true
+-                cursorShape: Qt.PointingHandCursor
+-                onClicked: {
+-                    if (modelData.connected) {
+-                        modelData.disconnectFromDevice();
+-                    } else {
+-                        modelData.connectToDevice();
+-                    }
+-                }
++            color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                           delegate.expanded ? 0.06 : (headerMA.containsMouse ? 0.05 : 0))
++            Behavior on color { ColorAnimation { duration: Kirigami.Units.shortDuration } }
++
++            // tracinho azul nos conectados
++            Rectangle {
++                anchors.left: parent.left
++                width: 3
++                height: delegate.device.connected ? 16 : 0
++                y: 22 - height / 2
++                radius: 1.5
++                color: Kirigami.Theme.highlightColor
++                Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+             }
+ 
+-            RowLayout {
+-                anchors.fill: parent
+-                anchors.leftMargin: 8
+-                anchors.rightMargin: 8
+-                spacing: 8
+-
+-                Kirigami.Icon {
+-                    width: 20
+-                    height: 20
+-                    source: modelData.icon || "bluetooth"
+-                    color: Kirigami.Theme.textColor
+-                }
++            ColumnLayout {
++                id: contentLayout
++                anchors.left: parent.left
++                anchors.right: parent.right
++                spacing: 0
+ 
+-                ColumnLayout {
++                Item {
+                     Layout.fillWidth: true
+-                    spacing: 0
+-
+-                    PlasmaComponents3.Label {
+-                        Layout.fillWidth: true
+-                        text: modelData.name
+-                        color: Kirigami.Theme.textColor
+-                        font.pixelSize: 11
+-                        elide: Text.ElideRight
++                    Layout.preferredHeight: 44
++
++                    MouseArea {
++                        id: headerMA
++                        anchors.fill: parent
++                        hoverEnabled: true
++                        cursorShape: Qt.PointingHandCursor
++                        onClicked: delegate.toggleExpand()
++                    }
++
++                    RowLayout {
++                        anchors.fill: parent
++                        anchors.leftMargin: 14
++                        anchors.rightMargin: 12
++                        spacing: 12
++
++                        Kirigami.Icon {
++                            Layout.preferredWidth: 22
++                            Layout.preferredHeight: 22
++                            source: delegate.device.icon || "preferences-system-bluetooth"
++                            color: Kirigami.Theme.textColor
++                            isMask: true
++                        }
++
++                        ColumnLayout {
++                            Layout.fillWidth: true
++                            spacing: 0
++                            PlasmaComponents3.Label {
++                                Layout.fillWidth: true
++                                text: delegate.device.name
++                                color: Kirigami.Theme.textColor
++                                elide: Text.ElideRight
++                            }
++                            PlasmaComponents3.Label {
++                                Layout.fillWidth: true
++                                text: delegate.statusText()
++                                color: delegate.phase === "failed" ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.textColor
++                                opacity: delegate.phase === "failed" ? 1 : 0.6
++                                font.pointSize: Kirigami.Theme.smallFont.pointSize
++                                elide: Text.ElideRight
++                            }
++                        }
+                     }
++                }
+ 
+-                    PlasmaComponents3.Label {
 -                        text: modelData.connected ? qsTr("Connected") : qsTr("Disconnected")
-+                        text: modelData.connected ? i18n("Connected") : i18n("Disconnected")
-                         color: Kirigami.Theme.textColor
-                         opacity: modelData.connected ? 0.5 : 0.3
-                         font.pixelSize: 9
+-                        color: Kirigami.Theme.textColor
+-                        opacity: modelData.connected ? 0.5 : 0.3
+-                        font.pixelSize: 9
++                Item {
++                    Layout.fillWidth: true
++                    Layout.preferredHeight: delegate.expanded ? expandedCol.implicitHeight : 0
++                    clip: true
++                    Behavior on Layout.preferredHeight { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
++
++                    ColumnLayout {
++                        id: expandedCol
++                        anchors.left: parent.left
++                        anchors.right: parent.right
++                        anchors.leftMargin: 48
++                        anchors.rightMargin: 12
++                        spacing: 8
++                        opacity: delegate.expanded ? 1 : 0
++                        transform: Translate { y: delegate.expanded ? 0 : -6
++                            Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } } }
++                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutQuad } }
++
++                        PlasmaComponents3.ProgressBar {
++                            Layout.fillWidth: true
++                            visible: delegate.phase === "connecting"
++                            indeterminate: true
++                        }
++
++                        RowLayout {
++                            Layout.fillWidth: true
++                            visible: delegate.phase !== "connecting"
++                            Item { Layout.fillWidth: true }
++                            Lib.WinButton {
++                                primary: !delegate.device.connected
++                                implicitWidth: 140
++                                text: delegate.device.connected ? i18n("Disconnect") : i18n("Connect")
++                                onClicked: delegate.toggleConnection()
++                            }
++                        }
++
++                        Item { Layout.fillWidth: true; Layout.preferredHeight: 4 }
+                     }
+                 }
+             }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
 index fee7f71..c672869 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml

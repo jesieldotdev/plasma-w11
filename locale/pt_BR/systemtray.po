@@ -389,3 +389,15 @@ msgstr "Aberta"
 
 msgid "Properties"
 msgstr "Propriedades"
+
+msgid "Connecting…"
+msgstr "Conectando…"
+
+msgid "Couldn't connect"
+msgstr "Não foi possível conectar"
+
+msgid "Connected · %1%"
+msgstr "Conectado · %1%"
+
+msgid "Paired"
+msgstr "Emparelhado"
