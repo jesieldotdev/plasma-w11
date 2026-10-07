@@ -213,3 +213,18 @@ msgstr "Abrir local do programa"
 
 msgid "Taskbar settings"
 msgstr "Configurações da barra de tarefas"
+
+msgid "Most used"
+msgstr "Mais usados"
+
+msgid "Recent"
+msgstr "Recentes"
+
+msgid "Home sections:"
+msgstr "Seções da página inicial:"
+
+msgid "Show most used apps"
+msgstr "Mostrar os apps mais usados"
+
+msgid "Show recent files"
+msgstr "Mostrar os arquivos recentes"
