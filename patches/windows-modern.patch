@@ -5024,10 +5024,10 @@ index f8becd6..143d559 100644
                      }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml
 new file mode 100644
-index 0000000..9c0fca2
+index 0000000..ff08477
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectPage.qml
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,130 @@
 +/*
 +    Projetar, como no Windows 11 (Win+P): Somente tela do PC, Duplicar,
 +    Estender e Somente segunda tela. Quem aplica é o "projetar" do plasma-w11
@@ -5086,23 +5086,72 @@ index 0000000..9c0fca2
 +        text: i18n("Connect a second display to choose how to use it.")
 +    }
 +
-+    Repeater {
-+        model: [
-+            { id: "pc",       text: i18n("PC screen only"),     icon: "computer-laptop-symbolic" },
-+            { id: "duplicar", text: i18n("Duplicate"),          icon: "edit-copy-symbolic" },
-+            { id: "estender", text: i18n("Extend"),             icon: "view-split-left-right-symbolic" },
-+            { id: "segunda",  text: i18n("Second screen only"), icon: "video-display-symbolic" }
-+        ]
-+        delegate: Lib.ListRow {
-+            required property var modelData
-+            enabled: page.mode !== "uma"
-+            opacity: enabled ? 1 : 0.5
-+            iconSource: modelData.icon
-+            text: modelData.text
-+            selected: page.mode === modelData.id
-+            onClicked: {
-+                page.mode = modelData.id;
-+                runner.run(page.tool + " " + modelData.id);
++    // Coluna de tiles grandes, como no Windows: o modo atual fica na cor de destaque
++    ColumnLayout {
++        Layout.fillWidth: true
++        Layout.leftMargin: 14
++        Layout.rightMargin: 14
++        spacing: 6
++
++        Repeater {
++            model: [
++                { id: "pc",       text: i18n("PC screen only"),     icon: "w11-project-pc",        fallback: "computer-laptop-symbolic" },
++                { id: "duplicar", text: i18n("Duplicate"),          icon: "w11-project-duplicate", fallback: "edit-copy-symbolic" },
++                { id: "estender", text: i18n("Extend"),             icon: "w11-project-extend",    fallback: "monitor-symbolic" },
++                { id: "segunda",  text: i18n("Second screen only"), icon: "w11-project-second",    fallback: "monitor-symbolic" }
++            ]
++            delegate: Rectangle {
++                id: modeTile
++                required property var modelData
++                readonly property bool selected: page.mode === modelData.id
++                readonly property bool usable: page.mode !== "uma"
++                readonly property color ink: selected ? (Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.highlightColor) === Kirigami.ColorUtils.Light ? "#1E1E1E" : "#FFFFFF")
++                                                      : Kirigami.Theme.textColor
++
++                Layout.fillWidth: true
++                Layout.preferredHeight: 60
++                radius: 6
++                opacity: usable ? 1 : 0.45
++                color: selected
++                       ? (tileMouse.containsPress ? Qt.darker(Kirigami.Theme.highlightColor, 1.12)
++                          : tileMouse.containsMouse ? Qt.lighter(Kirigami.Theme.highlightColor, 1.08) : Kirigami.Theme.highlightColor)
++                       : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
++                                 tileMouse.containsPress ? 0.035 : (tileMouse.containsMouse ? 0.085 : 0.06))
++                border.width: selected ? 0 : 1
++                border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.08)
++                Behavior on color { ColorAnimation { duration: 120 } }
++
++                RowLayout {
++                    anchors.fill: parent
++                    anchors.leftMargin: 16
++                    anchors.rightMargin: 16
++                    spacing: 16
++                    Kirigami.Icon {
++                        Layout.preferredWidth: 32
++                        Layout.preferredHeight: 32
++                        source: modeTile.modelData.icon
++                        fallback: modeTile.modelData.fallback
++                        color: modeTile.ink
++                        isMask: true
++                    }
++                    PlasmaComponents3.Label {
++                        Layout.fillWidth: true
++                        text: modeTile.modelData.text
++                        color: modeTile.ink
++                        elide: Text.ElideRight
++                    }
++                }
++                MouseArea {
++                    id: tileMouse
++                    anchors.fill: parent
++                    enabled: modeTile.usable
++                    hoverEnabled: true
++                    cursorShape: Qt.PointingHandCursor
++                    onClicked: {
++                        page.mode = modeTile.modelData.id;
++                        runner.run(page.tool + " " + modeTile.modelData.id);
++                    }
++                }
 +            }
 +        }
 +    }
@@ -5111,17 +5160,18 @@ index 0000000..9c0fca2
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml
 new file mode 100644
-index 0000000..7d64d49
+index 0000000..7046dde
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/ProjectToggle.qml
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,10 @@
 +import QtQuick
 +import "../lib" as Lib
 +
 +// "Projetar" do Windows: abre a página com os modos das telas
 +Lib.Tile {
 +    label: i18n("Project")
-+    iconSource: "video-display-symbolic"
++    iconSource: "w11-project"
++    iconFallback: "monitor-symbolic"
 +    tooltipText: i18n("Project — choose how to use the displays")
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/TouchpadToggle.qml
@@ -5512,6 +5562,26 @@ index 08391c5..744290d 100644
          }
  
          Item {
+diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Tile.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Tile.qml
+index ca85d4e..fc33907 100644
+--- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Tile.qml
++++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/Tile.qml
+@@ -9,6 +9,7 @@ ColumnLayout {
+     id: tile
+ 
+     property string iconSource
++    property string iconFallback: ""   // quando o tema não tem o ícone (ex.: sem os ícones Fluent)
+     property string label
+     property string tooltipText: ""
+     property bool active: false
+@@ -82,6 +83,7 @@ ColumnLayout {
+             width: Kirigami.Units.iconSizes.smallMedium
+             height: Kirigami.Units.iconSizes.smallMedium
+             source: tile.iconSource
++            fallback: tile.iconFallback
+             color: tile.fg
+             isMask: true
+         }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ToggleSwitch.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/lib/ToggleSwitch.qml
 new file mode 100644
 index 0000000..2e90dff

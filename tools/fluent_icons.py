@@ -37,6 +37,21 @@ def bat(pct, charging):
     i = max(0, min(10, round(pct / 10)))
     return svg([((0xEBAB if charging else 0xEBA0) + i, 1)], [0xEBA0, 0xEBB5])
 
+def side_by_side(cp, gap=0.12):
+    """Dois glyphs iguais lado a lado (Estender, do Projetar)."""
+    x0, y0, x1, y1 = bounds([cp])
+    w, h = x1 - x0, y1 - y0
+    total = 2 * w + gap * w
+    k = min(BOX_W / total, BOX_H / h)
+    cy = (y0 + y1) / 2
+    body = ''
+    for i in range(2):
+        left = 1024 - k * total / 2 + i * k * (w + gap * w)
+        tr = f'matrix({k:.4f} 0 0 {-k:.4f} {left - k * x0:.2f} {1024 + k * cy:.2f})'
+        body += f'<path class="ColorScheme-Text" fill="currentColor" transform="{tr}" d="{path(cp)}"/>'
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="-160 -160 2368 2368">'
+            '<style id="current-color-scheme">.ColorScheme-Text{color:#ffffff;}</style>' + body + '</svg>')
+
 def icon_for(name):
     n = re.sub(r'-(symbolic|panel)$', '', name)
     m = re.fullmatch(r'network-wireless-(\d+)(-locked)?', n)
@@ -75,6 +90,11 @@ def icon_for(name):
     if n.startswith('redshift-status-off') or n == 'night-light-disabled': return svg([(0xE708, 0.45)])
     if n in ('media-playback-start', 'media-playback-playing'): return svg([(0xE768, 1)])
     if n in ('media-playback-pause', 'media-playback-paused'): return svg([(0xE769, 1)])
+    # Projetar (configurações rápidas): o botão e os quatro modos das telas
+    if n == 'w11-project' or n == 'w11-project-duplicate': return svg([(0xEBC6, 1)])
+    if n == 'w11-project-pc': return svg([(0xE7F8, 1)])
+    if n == 'w11-project-second': return svg([(0xE7F4, 1)])
+    if n == 'w11-project-extend': return side_by_side(0xE7F4)
     if n in ('media-removable', 'drive-removable-media', 'drive-removable-media-usb', 'device-notifier'):
         return svg([(0xE88E, 1)])
     return None
@@ -85,7 +105,8 @@ extra = ['power-profile-performance-symbolic', 'power-profile-balanced-symbolic'
          'battery-profile-balanced', 'media-playback-start', 'media-playback-start-symbolic', 'media-playback-playing',
          'media-playback-paused', 'media-playback-pause', 'media-playback-pause-symbolic', 'night-light', 'night-light-disabled',
          'network-offline', 'network-wireless-disconnected', 'device-notifier', 'video-display-brightness',
-         'video-display-brightness-symbolic', 'audio-volume-low-zero', 'audio-volume-low-zero-symbolic']
+         'video-display-brightness-symbolic', 'audio-volume-low-zero', 'audio-volume-low-zero-symbolic',
+         'w11-project', 'w11-project-pc', 'w11-project-duplicate', 'w11-project-extend', 'w11-project-second']
 extra += [f'{base}{suf}' for base in ('microphone-sensitivity-high', 'microphone-sensitivity-medium',
                                       'microphone-sensitivity-low', 'microphone-sensitivity-muted',
                                       'audio-input-microphone', 'audio-input-microphone-muted')
