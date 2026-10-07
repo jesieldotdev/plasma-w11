@@ -115,7 +115,8 @@ class Toggle(QWidget):
         self._pos = 1.0 if checked else 0.0
         self.setFixedSize(40, 20)
         self.setCursor(Qt.PointingHandCursor)
-        self._anim = QPropertyAnimation(self, b'pos', self)
+        # não pode se chamar 'pos': é a posição do próprio widget no Qt
+        self._anim = QPropertyAnimation(self, b'knob', self)
         self._anim.setDuration(120)
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
 
@@ -136,14 +137,14 @@ class Toggle(QWidget):
         if self.isEnabled():
             self.setChecked(not self._on, emit=True)
 
-    def getPos(self):
+    def getKnob(self):
         return self._pos
 
-    def setPos(self, v):
+    def setKnob(self, v):
         self._pos = v
         self.update()
 
-    pos = Property(float, getPos, setPos)
+    knob = Property(float, getKnob, setKnob)
 
     def paintEvent(self, e):
         pal = self.palette()
