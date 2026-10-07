@@ -36,6 +36,8 @@ if [ "$PURGE" = 1 ]; then
     as_root rm -f "$QT_PLUGINS/plasma/applets/org.kde.windowsmodern.systemtray.so"
     [ -x "$STATE/dolphin-w11/uninstall.sh" ] && bash "$STATE/dolphin-w11/uninstall.sh" || true
     rm -rf "$STATE/dolphin-w11"
+    [ -x "$STATE/settings-w11/uninstall.sh" ] && bash "$STATE/settings-w11/uninstall.sh" || true
+    rm -rf "$STATE/settings-w11"
     restart_shell
     echo "Os backups continuam em $STATE/backups (apague à mão se quiser)."
 fi

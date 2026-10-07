@@ -50,7 +50,7 @@ if [ "$DEPS" = 1 ]; then
             gcc-c++ cmake extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel \
             kf6-kpackage-devel kf6-kconfig-devel kf6-ki18n-devel kf6-kcoreaddons-devel \
             kf6-kwindowsystem-devel kf6-kio-devel kf6-kiconthemes-devel kf6-kitemmodels-devel \
-            kf6-kservice-devel kf6-kxmlgui-devel kf6-kjobwidgets-devel kf6-kcmutils-devel \
+            kf6-kservice-devel kf6-kxmlgui-devel kf6-kjobwidgets-devel kf6-kcmutils-devel kf6-kdbusaddons-devel \
             libplasma-devel plasma-workspace-devel plasma-workspace-libs attr
         as_root dnf -y -q builddep dolphin   # para compilar o dolphin-w11 (Dolphin com o painel do Windows)
         if [ "$ROUNDED" = 1 ]; then
@@ -105,6 +105,18 @@ else
     git clone -q https://github.com/jesieldotdev/dolphin-w11 "$DW"
 fi
 bash "$DW/build.sh" --skip-deps || warn "o dolphin-w11 não foi instalado; fica o Dolphin normal"
+
+# ── 4c. settings-w11: Configurações organizadas como as do Windows 11 ─
+# https://github.com/jesieldotdev/settings-w11 — faz o "systemsettings" abrir o novo app.
+info "settings-w11 (Configurações do Windows 11)"
+SW="$STATE/settings-w11"
+if [ -d "$SW/.git" ]; then
+    git -C "$SW" pull -q --ff-only || true
+else
+    rm -rf "$SW"
+    git clone -q https://github.com/jesieldotdev/settings-w11 "$SW"
+fi
+bash "$SW/build.sh" --skip-deps || warn "o settings-w11 não foi instalado; ficam as Configurações do KDE"
 
 # ── 5. traduções ─────────────────────────────────────────────────────
 info "Traduções dos applets"

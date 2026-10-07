@@ -23,6 +23,9 @@ Parte do [KDE-Windows-Modern](https://github.com/Jeysef/KDE-Windows-Modern) (tem
   projeto à parte que o instalador baixa e compila: painel de navegação (Acesso rápido, Este
   Computador, Rede), página "Este Computador" com a barra de espaço das unidades, barras de
   comandos e de endereço com pesquisa, lista simples e painel de visualização.
+- **Configurações do Windows 11**: o [settings-w11](https://github.com/jesieldotdev/settings-w11),
+  projeto à parte: as Configurações do KDE organizadas como as do Windows (barra lateral com
+  Sistema, Bluetooth e dispositivos, Rede & Internet, Personalização…, cartões e pesquisa).
 - **Configurações da barra de tarefas** (botão direito no Iniciar, ou pelo menu):
   alinhamento centro/esquerda, ocultar automaticamente, botões pequenos e altura da
   barra, contadores nos apps, combinar janelas, canto de mostrar a área de trabalho,
