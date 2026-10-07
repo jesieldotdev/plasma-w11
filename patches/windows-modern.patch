@@ -3336,7 +3336,7 @@ index 73e39a1..3e8255a 100644
      }
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
-index 256dc7f..a7edb7f 100644
+index 256dc7f..b1fc9a7 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothPage.qml
 @@ -10,12 +10,12 @@ import "../lib" as Lib
@@ -3377,7 +3377,7 @@ index 256dc7f..a7edb7f 100644
 +            anchors.verticalCenter: parent.verticalCenter
 +            text: i18n("Add new device")
 +            iconName: "list-add"
-+            onClicked: bluetoothExec.exec("bluedevil-wizard")
++            onClicked: bluetoothExec.exec("setsid -f bluedevil-wizard") // solto da bandeja: fechar o painel não mata o assistente
 +        }
      }
  
@@ -3611,7 +3611,7 @@ index 256dc7f..a7edb7f 100644
                  }
              }
 diff --git a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
-index fee7f71..c672869 100644
+index fee7f71..7a35673 100644
 --- a/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
 +++ b/plasma/applets/org.kde.windowsmodern.systemtray/contents/ui/components/BluetoothToggle.qml
 @@ -10,7 +10,7 @@ Lib.SplitTile {
@@ -3644,13 +3644,15 @@ index fee7f71..c672869 100644
 -            text: qsTr("Add new device…")
 +            text: i18n("Add new device…")
              icon.name: "list-add"
-             onClicked: btExec.exec("bluedevil-wizard")
+-            onClicked: btExec.exec("bluedevil-wizard")
++            onClicked: btExec.exec("setsid -f bluedevil-wizard")
          }
          PlasmaComponents3.MenuItem {
 -            text: qsTr("Send file…")
 +            text: i18n("Send file…")
              icon.name: "document-send"
-             onClicked: btExec.exec("bluedevil-sendfile")
+-            onClicked: btExec.exec("bluedevil-sendfile")
++            onClicked: btExec.exec("setsid -f bluedevil-sendfile")
          }
          PlasmaComponents3.MenuItem {
 -            text: qsTr("Bluetooth settings")
