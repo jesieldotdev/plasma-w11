@@ -462,10 +462,10 @@ index 9649ada..7cf9a8a 100644
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml
 new file mode 100644
-index 0000000..d0c9fe1
+index 0000000..0eb5584
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml
-@@ -0,0 +1,232 @@
+@@ -0,0 +1,390 @@
 +/*
 +    Painel das Notas Autoadesivas (notas-w11) no relógio, entre as
 +    notificações e o calendário: barra recolhível com "+" e, aberta, as
@@ -513,6 +513,35 @@ index 0000000..d0c9fe1
 +    clip: true
 +
 +    function run(args) { runner.connectSource(cmd + " " + args); }
++    // texto → base64 do UTF-8 (o comando recebe acentos, aspas e quebras de linha intactos)
++    function b64(text) {
++        // UTF-8 (pelo encodeURIComponent) e base64 padrão, sem depender do Qt.btoa
++        const bytes = [];
++        const utf8 = encodeURIComponent(text);
++        for (let i = 0; i < utf8.length; ++i) {
++            if (utf8[i] === "%") { bytes.push(parseInt(utf8.substr(i + 1, 2), 16)); i += 2; }
++            else bytes.push(utf8.charCodeAt(i));
++        }
++        const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
++        let out = "";
++        for (let i = 0; i < bytes.length; i += 3) {
++            const n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
++            out += abc[(n >> 18) & 63] + abc[(n >> 12) & 63]
++                 + (i + 1 < bytes.length ? abc[(n >> 6) & 63] : "=")
++                 + (i + 2 < bytes.length ? abc[n & 63] : "=");
++        }
++        return out;
++    }
++    function addNote(text) {
++        if (!text.trim().length) return;
++        run("--add-b64 " + b64(text));
++        refreshSoon.restart();
++    }
++    function saveText(id, text) { run("--set-b64 " + id + " " + b64(text)); }
++    // o notas-w11 salva e atualiza o arquivo em seguida: relê logo
++    Timer { id: refreshSoon; interval: 700; onTriggered: feed.connectSource(feed.source) }
++
++    property string editingId: ""   // cartão sendo editado aqui mesmo
 +
 +    Plasma5Support.DataSource {
 +        id: feed
@@ -523,6 +552,7 @@ index 0000000..d0c9fe1
 +        onNewData: (sourceName, data) => {
 +            const out = (data["stdout"] || "").trim();
 +            if (out === "MISSING" || out.length === 0) { panel.notes = null; return; }
++            if (panel.editingId.length) return; // editando: não troca os cartões no meio
 +            try { panel.notes = JSON.parse(out).notes || []; } catch (e) { }
 +        }
 +    }
@@ -534,7 +564,10 @@ index 0000000..d0c9fe1
 +    }
 +
 +    // entra subindo junto com os outros painéis
-+    onOpenChanged: if (open) { feed.connectSource(feed.source); openAnim.restart(); }
++    onOpenChanged: {
++        if (open) { feed.connectSource(feed.source); openAnim.restart(); }
++        else panel.editingId = "";
++    }
 +    SequentialAnimation {
 +        id: openAnim
 +        PropertyAction { target: column; property: "opacity"; value: 0 }
@@ -610,20 +643,70 @@ index 0000000..d0c9fe1
 +                opacity: panel.collapsed ? 0 : 1
 +                Behavior on opacity { NumberAnimation { duration: 180 } }
 +
++                // ── nota rápida: Enter salva no Keep, Shift+Enter pula linha ──
++                Rectangle {
++                    Layout.fillWidth: true
++                    Layout.topMargin: Kirigami.Units.smallSpacing
++                    implicitHeight: Math.max(36, quick.implicitHeight + 14)
++                    radius: 6
++                    color: quick.activeFocus ? Qt.rgba(0, 0, 0, 0.25)
++                                             : Qt.rgba(palette.text.r, palette.text.g, palette.text.b, quickHover.hovered ? 0.085 : 0.06)
++                    border.width: 1
++                    border.color: Qt.rgba(palette.text.r, palette.text.g, palette.text.b, 0.08)
++                    Behavior on color { ColorAnimation { duration: 120 } }
++                    Behavior on implicitHeight { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
++                    HoverHandler { id: quickHover; cursorShape: Qt.IBeamCursor }
++                    Rectangle { // linha de destaque ao digitar, como no Windows
++                        anchors.bottom: parent.bottom
++                        anchors.horizontalCenter: parent.horizontalCenter
++                        width: quick.activeFocus ? parent.width - 2 : 0
++                        height: 2
++                        radius: 1
++                        color: palette.accent
++                        Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
++                    }
++                    TextEdit {
++                        id: quick
++                        anchors.fill: parent
++                        anchors.leftMargin: 10
++                        anchors.rightMargin: 10
++                        anchors.topMargin: 7
++                        wrapMode: TextEdit.Wrap
++                        color: palette.text
++                        selectionColor: palette.accent
++                        font: Kirigami.Theme.defaultFont
++                        Keys.onReturnPressed: event => {
++                            if (event.modifiers & Qt.ShiftModifier) { event.accepted = false; return; }
++                            panel.addNote(text);
++                            text = "";
++                        }
++                        Keys.onEnterPressed: event => { panel.addNote(text); text = ""; }
++                        Keys.onEscapePressed: { text = ""; focus = false; }
++                        PlasmaComponents.Label {
++                            visible: !quick.text.length
++                            text: i18n("Write a note…")
++                            color: palette.textSecondary
++                        }
++                    }
++                }
++
 +                Repeater {
 +                    model: panel.notes ? panel.notes.slice(0, panel.shown) : []
 +                    delegate: Rectangle {
 +                        id: card
 +                        required property var modelData
 +                        required property int index
++                        readonly property bool editing: panel.editingId === modelData.id
 +                        readonly property string preview: modelData.isList
 +                            ? modelData.items.map(i => (i.checked ? "☑ " : "☐ ") + i.text).join("  ")
 +                            : modelData.text
 +                        Layout.fillWidth: true
-+                        Layout.topMargin: index === 0 ? Kirigami.Units.smallSpacing : 0
-+                        implicitHeight: cardText.implicitHeight + Kirigami.Units.largeSpacing * 1.5
++                        implicitHeight: (editing ? editor.implicitHeight + editTitle.implicitHeight + 34 : cardText.implicitHeight)
++                                        + Kirigami.Units.largeSpacing * 1.5
++                        Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 +                        radius: 6
-+                        color: Qt.rgba(palette.text.r, palette.text.g, palette.text.b, cardMouse.containsMouse ? 0.085 : 0.05)
++                        color: editing ? Qt.rgba(0, 0, 0, 0.22)
++                               : Qt.rgba(palette.text.r, palette.text.g, palette.text.b, cardMouse.containsMouse ? 0.085 : 0.05)
 +                        clip: true
 +                        Behavior on color { ColorAnimation { duration: 120 } }
 +
@@ -632,12 +715,15 @@ index 0000000..d0c9fe1
 +                            width: 3
 +                            height: parent.height - 12
 +                            x: 6
-+                            anchors.verticalCenter: parent.verticalCenter
++                            y: 6
 +                            radius: 1.5
 +                            color: panel.barColors[card.modelData.color] || panel.barColors.DEFAULT
 +                        }
++
++                        // ── visualização ──
 +                        ColumnLayout {
 +                            id: cardText
++                            visible: !card.editing
 +                            anchors.left: parent.left
 +                            anchors.right: parent.right
 +                            anchors.verticalCenter: parent.verticalCenter
@@ -664,9 +750,81 @@ index 0000000..d0c9fe1
 +                        MouseArea {
 +                            id: cardMouse
 +                            anchors.fill: parent
++                            visible: !card.editing
 +                            hoverEnabled: true
-+                            cursorShape: Qt.PointingHandCursor
-+                            onClicked: panel.run("--open " + card.modelData.id)
++                            cursorShape: card.modelData.isList ? Qt.PointingHandCursor : Qt.IBeamCursor
++                            // listas de tarefas abrem a nota; texto edita aqui mesmo
++                            onClicked: {
++                                if (card.modelData.isList) { panel.run("--open " + card.modelData.id); return; }
++                                panel.editingId = card.modelData.id;
++                                editor.text = card.modelData.text;
++                                editor.forceActiveFocus();
++                                editor.cursorPosition = editor.text.length;
++                            }
++                        }
++
++                        // ── edição ali mesmo ──
++                        ColumnLayout {
++                            visible: card.editing
++                            anchors.left: parent.left
++                            anchors.right: parent.right
++                            anchors.top: parent.top
++                            anchors.leftMargin: 16
++                            anchors.rightMargin: 8
++                            anchors.topMargin: Kirigami.Units.smallSpacing + 2
++                            spacing: 4
++                            RowLayout {
++                                Layout.fillWidth: true
++                                PlasmaComponents.Label {
++                                    id: editTitle
++                                    Layout.fillWidth: true
++                                    text: card.modelData.title || i18n("Note")
++                                    color: palette.textSecondary
++                                    font.pointSize: Kirigami.Theme.smallFont.pointSize
++                                    elide: Text.ElideRight
++                                }
++                                PlasmaComponents.ToolButton {
++                                    icon.name: "window-new"
++                                    display: PlasmaComponents.AbstractButton.IconOnly
++                                    text: i18n("Open as sticky note")
++                                    PlasmaComponents.ToolTip.text: text
++                                    PlasmaComponents.ToolTip.visible: hovered
++                                    onClicked: { panel.editingId = ""; panel.run("--open " + card.modelData.id); }
++                                }
++                                PlasmaComponents.ToolButton {
++                                    icon.name: "dialog-ok"
++                                    display: PlasmaComponents.AbstractButton.IconOnly
++                                    text: i18n("Done")
++                                    PlasmaComponents.ToolTip.text: text
++                                    PlasmaComponents.ToolTip.visible: hovered
++                                    onClicked: card.finish()
++                                }
++                            }
++                            TextEdit {
++                                id: editor
++                                Layout.fillWidth: true
++                                wrapMode: TextEdit.Wrap
++                                color: palette.text
++                                selectionColor: palette.accent
++                                font: Kirigami.Theme.defaultFont
++                                // salva quando a pessoa para de digitar
++                                onTextChanged: if (card.editing && activeFocus) typing.restart()
++                                Keys.onEscapePressed: card.finish()
++                                onActiveFocusChanged: if (!activeFocus && card.editing) card.finish()
++                            }
++                        }
++                        Timer {
++                            id: typing
++                            interval: 800
++                            onTriggered: panel.saveText(card.modelData.id, editor.text)
++                        }
++                        function finish() {
++                            if (typing.running || editor.text !== card.modelData.text) {
++                                typing.stop();
++                                panel.saveText(card.modelData.id, editor.text);
++                            }
++                            panel.editingId = "";
++                            refreshSoon.restart();
 +                        }
 +
 +                        // entram com fade, um depois do outro

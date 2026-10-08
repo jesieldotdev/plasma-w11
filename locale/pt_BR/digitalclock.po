@@ -79,3 +79,15 @@ msgstr "Ver todas (%1)"
 
 msgid "See all"
 msgstr "Ver todas"
+
+msgid "Write a note…"
+msgstr "Escreva uma nota…"
+
+msgid "Note"
+msgstr "Nota"
+
+msgid "Open as sticky note"
+msgstr "Abrir como nota autoadesiva"
+
+msgid "Done"
+msgstr "Concluído"
