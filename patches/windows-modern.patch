@@ -13,6 +13,162 @@ index ff91ae3..84bf7d4 100644
      <entry name="expandedWidth" type="Int">
        <label>Width of the expanded clock popup in pixels.</label>
        <default>320</default>
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/AgendaView.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/AgendaView.qml
+new file mode 100644
+index 0000000..579f542
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/AgendaView.qml
+@@ -0,0 +1,137 @@
++/*
++    Agenda do dia selecionado, embaixo do calendário: os eventos dos plugins
++    do calendário (agenda do Google/Akonadi pelo "Eventos do PIM", feriados…),
++    com a cor da agenda, o horário (ou "Dia inteiro") e o título.
++
++    SPDX-License-Identifier: GPL-2.0-or-later
++*/
++
++pragma ComponentBehavior: Bound
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.components as PlasmaComponents
++import org.kde.kirigami as Kirigami
++
++Item {
++    id: agenda
++
++    required property var daysModel
++    required property date date
++
++    Win11Palette { id: palette }
++
++    // eventsForDate é uma função: "revision" refaz a lista quando os plugins mandam eventos
++    property int revision: 0
++    Connections {
++        target: agenda.daysModel
++        function onAgendaUpdated(updatedDate) { agenda.revision++; }
++    }
++
++    readonly property var events: {
++        agenda.revision;
++        if (!agenda.daysModel) return [];
++        const list = Array.from(agenda.daysModel.eventsForDate(agenda.date) || []);
++        // dia inteiro primeiro, depois pela hora de começo
++        list.sort((a, b) => (b.isAllDay - a.isAllDay) || (a.startDateTime - b.startDateTime));
++        return list;
++    }
++
++    function timeText(ev) {
++        if (ev.isAllDay) return i18n("All day");
++        const fmt = Qt.locale().timeFormat(Locale.ShortFormat);
++        const start = Qt.formatTime(ev.startDateTime, fmt);
++        const end = Qt.formatTime(ev.endDateTime, fmt);
++        return start === end ? start : start + " – " + end;
++    }
++
++    // a altura anima quando a quantidade de eventos muda
++    implicitHeight: column.implicitHeight
++    Layout.preferredHeight: implicitHeight
++    Behavior on implicitHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
++    clip: true
++
++    // trocar de dia: a lista nova desliza e aparece
++    onDateChanged: dayAnim.restart()
++    ParallelAnimation {
++        id: dayAnim
++        NumberAnimation { target: shift; property: "y"; from: Kirigami.Units.gridUnit * 0.6; to: 0; duration: 220; easing.type: Easing.OutCubic }
++        NumberAnimation { target: column; property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutQuad }
++    }
++
++    ColumnLayout {
++        id: column
++        width: parent.width
++        spacing: Kirigami.Units.smallSpacing
++        transform: Translate { id: shift }
++
++        PlasmaComponents.Label {
++            Layout.fillWidth: true
++            text: new Date().toDateString() === agenda.date.toDateString()
++                  ? i18n("Today")
++                  : Qt.locale().toString(agenda.date, "dddd, d MMMM")
++            color: palette.textSecondary
++            font.pointSize: Kirigami.Theme.smallFont.pointSize
++            elide: Text.ElideRight
++        }
++
++        Repeater {
++            model: agenda.events
++            delegate: Rectangle {
++                id: eventRow
++                required property var modelData
++                Layout.fillWidth: true
++                implicitHeight: eventText.implicitHeight + Kirigami.Units.smallSpacing * 2
++                radius: 6
++                color: Qt.rgba(palette.text.r, palette.text.g, palette.text.b, eventMouse.containsMouse ? 0.085 : 0.05)
++                Behavior on color { ColorAnimation { duration: 120 } }
++
++                Rectangle { // a cor da agenda
++                    x: Kirigami.Units.smallSpacing
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: 3
++                    height: parent.height - Kirigami.Units.smallSpacing * 2
++                    radius: 1.5
++                    color: eventRow.modelData.eventColor && eventRow.modelData.eventColor.length > 0
++                           ? eventRow.modelData.eventColor : palette.accent
++                }
++                ColumnLayout {
++                    id: eventText
++                    anchors.left: parent.left
++                    anchors.right: parent.right
++                    anchors.verticalCenter: parent.verticalCenter
++                    anchors.leftMargin: Kirigami.Units.smallSpacing * 2 + 3
++                    anchors.rightMargin: Kirigami.Units.smallSpacing
++                    spacing: 0
++                    PlasmaComponents.Label {
++                        Layout.fillWidth: true
++                        text: eventRow.modelData.title || ""
++                        elide: Text.ElideRight
++                    }
++                    PlasmaComponents.Label {
++                        Layout.fillWidth: true
++                        text: agenda.timeText(eventRow.modelData)
++                        color: palette.textSecondary
++                        font.pointSize: Kirigami.Theme.smallFont.pointSize
++                    }
++                }
++                MouseArea {
++                    id: eventMouse
++                    anchors.fill: parent
++                    hoverEnabled: true
++                }
++                PlasmaComponents.ToolTip.text: eventRow.modelData.description || ""
++                PlasmaComponents.ToolTip.visible: eventMouse.containsMouse && PlasmaComponents.ToolTip.text.length > 0
++                PlasmaComponents.ToolTip.delay: 600
++            }
++        }
++
++        PlasmaComponents.Label {
++            visible: agenda.events.length === 0
++            Layout.fillWidth: true
++            text: i18n("No events")
++            color: palette.textSecondary
++        }
++    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CalendarDayDelegate.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CalendarDayDelegate.qml
+index c5ff7f7..e953423 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CalendarDayDelegate.qml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CalendarDayDelegate.qml
+@@ -118,7 +118,7 @@ MouseArea {
+ 
+     QQC2.ToolTip {
+         visible: dayDelegate.hasEvents && dayDelegate.containsMouse
+-        text: dayDelegate.dayEvents.map(ev => ev.summary || "").join("\n")
++        text: dayDelegate.dayEvents.map(ev => ev.title || "").join("\n")
+         delay: 800
+     }
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
 index e8cb979..df0c9f5 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
@@ -102,7 +258,7 @@ index e8cb979..df0c9f5 100644
              textFormat: Text.PlainText
  
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-index 9649ada..1e1002c 100644
+index 9649ada..7cf9a8a 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 @@ -4,6 +4,12 @@
@@ -164,7 +320,7 @@ index 9649ada..1e1002c 100644
          anchors {
              left: parent.left
              right: parent.right
-@@ -40,78 +58,53 @@ Item {
+@@ -40,78 +58,64 @@ Item {
          }
          spacing: Kirigami.Units.largeSpacing
  
@@ -264,22 +420,33 @@ index 9649ada..1e1002c 100644
 +        Item {
              Layout.fillWidth: true
 -            focus: true
-+            Layout.preferredHeight: expandedRoot.collapsed ? 0 : calendarView.implicitHeight
++            Layout.preferredHeight: expandedRoot.collapsed ? 0 : calendarBody.implicitHeight
 +            Layout.topMargin: expandedRoot.collapsed ? -mainColumn.spacing : 0
 +            clip: true
 +            Behavior on Layout.preferredHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 +            Behavior on Layout.topMargin { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-+            CalendarView {
-+                id: calendarView
++            ColumnLayout {
++                id: calendarBody
 +                width: parent.width
++                spacing: Kirigami.Units.largeSpacing
 +                opacity: expandedRoot.collapsed ? 0 : 1
 +                Behavior on opacity { NumberAnimation { duration: 180 } }
-+                focus: true
++                CalendarView {
++                    id: calendarView
++                    Layout.fillWidth: true
++                    focus: true
++                }
++                // ── agenda do dia selecionado (eventos do Google/Akonadi, feriados…) ──
++                AgendaView {
++                    Layout.fillWidth: true
++                    daysModel: calendarView.calendarBackend.daysModel
++                    date: calendarView.selectedDate
++                }
 +            }
          }
  
          // ── Optional timezone list ──
-@@ -119,7 +112,8 @@ Item {
+@@ -119,7 +123,8 @@ Item {
              id: timeZoneView
              Layout.fillWidth: true
              Layout.preferredHeight: visible ? Kirigami.Units.gridUnit * 8 : 0

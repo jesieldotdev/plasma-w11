@@ -46,3 +46,12 @@ msgid "+%1 notification"
 msgid_plural "+%1 notifications"
 msgstr[0] "+%1 notificação"
 msgstr[1] "+%1 notificações"
+
+msgid "All day"
+msgstr "Dia inteiro"
+
+msgid "No events"
+msgstr "Nenhum evento"
+
+msgid "Today"
+msgstr "Hoje"
