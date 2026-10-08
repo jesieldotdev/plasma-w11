@@ -26,3 +26,23 @@ msgstr "%1 min"
 
 msgid "Close"
 msgstr "Fechar"
+
+msgid "Notification settings"
+msgstr "Configurações de notificação"
+
+msgid "Show calendar"
+msgstr "Mostrar o calendário"
+
+msgid "Hide calendar"
+msgstr "Ocultar o calendário"
+
+msgid "Show more"
+msgstr "Ver mais"
+
+msgid "Show less"
+msgstr "Ver menos"
+
+msgid "+%1 notification"
+msgid_plural "+%1 notifications"
+msgstr[0] "+%1 notificação"
+msgstr[1] "+%1 notificações"

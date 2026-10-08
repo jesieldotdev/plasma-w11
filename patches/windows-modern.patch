@@ -1,5 +1,20 @@
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
+index ff91ae3..84bf7d4 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
+@@ -117,6 +117,10 @@
+       <label>Vertical padding around the compact clock text as a fraction of panel height.</label>
+       <default>0.18</default>
+     </entry>
++    <entry name="calendarCollapsed" type="Bool">
++      <label>Calendar folded to just the date bar, as in Windows 11.</label>
++      <default>false</default>
++    </entry>
+     <entry name="expandedWidth" type="Int">
+       <label>Width of the expanded clock popup in pixels.</label>
+       <default>320</default>
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
-index e8cb979..5709acb 100644
+index e8cb979..df0c9f5 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/CompactRepresentation.qml
 @@ -33,7 +33,9 @@ MouseArea {
@@ -28,6 +43,15 @@ index e8cb979..5709acb 100644
          return 0;
      }
      readonly property real tzHeightRatio: showTimezone ? (showDate ? 0.15 : 0.35) : 0
+@@ -112,7 +114,7 @@ MouseArea {
+ 
+     onClicked: mouse => {
+         if (mouse.button === Qt.LeftButton) {
+-            plasmoidItem.expanded = !plasmoidItem.expanded;
++            plasmoidItem.toggleCenter();
+         }
+     }
+ 
 @@ -124,8 +126,10 @@ MouseArea {
  
      ColumnLayout {
@@ -78,54 +102,66 @@ index e8cb979..5709acb 100644
              textFormat: Text.PlainText
  
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-index 9649ada..1d6b4f6 100644
+index 9649ada..bbd96eb 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-@@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
+@@ -4,6 +4,12 @@
+     SPDX-License-Identifier: GPL-2.0-or-later
+ */
+ 
++/*
++    Painel do calendário do Windows 11 (o de baixo, colado no relógio): a data
++    com a seta que recolhe/abre o calendário, o mês e os fusos horários.
++    As notificações ficam no painel de cima (NotificationPanel).
++*/
++
+ pragma ComponentBehavior: Bound
  
  import QtQuick
- import QtQuick.Layouts
-+import QtQuick.Window
+@@ -16,20 +22,23 @@ import org.kde.kirigami as Kirigami
+ Item {
+     id: expandedRoot
  
- import org.kde.plasma.plasmoid
- import org.kde.plasma.components as PlasmaComponents
-@@ -18,16 +19,23 @@ Item {
- 
++    property bool open: false
++    readonly property bool collapsed: Plasmoid.configuration.calendarCollapsed
++
      Win11Palette { id: palette }
  
 -    // Size the popup based on configuration: width is capped at expandedWidth
 -    // and the height keeps a fixed 340:450 (width:height) aspect ratio.
-+    // Largura da configuração; a altura acompanha as notificações + o calendário
-     implicitWidth: Plasmoid.configuration.expandedWidth
-     Layout.preferredWidth: Plasmoid.configuration.expandedWidth
-     Layout.maximumWidth: Plasmoid.configuration.expandedWidth
+-    implicitWidth: Plasmoid.configuration.expandedWidth
+-    Layout.preferredWidth: Plasmoid.configuration.expandedWidth
+-    Layout.maximumWidth: Plasmoid.configuration.expandedWidth
 -    implicitHeight: Math.round(Plasmoid.configuration.expandedWidth * 450 / 340)
-+    implicitHeight: mainColumn.implicitHeight + Kirigami.Units.largeSpacing * 2
-     Layout.preferredHeight: implicitHeight
-     Layout.maximumHeight: implicitHeight
-     clip: true
+-    Layout.preferredHeight: implicitHeight
+-    Layout.maximumHeight: implicitHeight
+-    clip: true
++    // o Dialog ajusta o conteúdo ao tamanho da janela: o tamanho vem dos limites do Layout
++    readonly property real wantedWidth: Plasmoid.configuration.expandedWidth || Kirigami.Units.gridUnit * 20
++    readonly property real wantedHeight: mainColumn.implicitHeight + Kirigami.Units.largeSpacing * 2
++    width: wantedWidth
++    height: wantedHeight
++    implicitWidth: wantedWidth
++    implicitHeight: wantedHeight
++    Layout.minimumWidth: wantedWidth
++    Layout.maximumWidth: wantedWidth
++    Layout.minimumHeight: wantedHeight
++    Layout.maximumHeight: wantedHeight
  
-+    // altura de tudo que fica abaixo das notificações (data, calendário, fusos)
-+    readonly property real calendarPartHeight: dateHeader.implicitHeight + calendarView.implicitHeight
-+        + (timeZoneView.visible ? timeZoneView.Layout.preferredHeight : 0)
-+        + mainColumn.spacing * 4 + Kirigami.Units.largeSpacing * 2
-+
-+    // ao abrir, as notificações contam como lidas
-+    onVisibleChanged: if (visible) notificationCenter.markRead()
-+
-     // The popup fill, border and shadow are supplied by the Plasma theme's
-     // dialogs/background.svg; we only lay out the content here.
+-    // The popup fill, border and shadow are supplied by the Plasma theme's
+-    // dialogs/background.svg; we only lay out the content here.
      ColumnLayout {
-@@ -40,71 +48,34 @@ Item {
+         id: mainColumn
+         anchors {
+@@ -40,76 +49,34 @@ Item {
          }
          spacing: Kirigami.Units.largeSpacing
  
 -        // ── Header: large time (with superscript AM/PM) and full date ──
 -        ColumnLayout {
 -            id: headerColumn
-+        // ── Central de notificações (Windows 11: em cima do calendário) ──
-+        NotificationCenter {
-+            id: notificationCenter
++        // ── Data e a seta de recolher, como na barra do calendário do Windows 11 ──
++        RowLayout {
              Layout.fillWidth: true
 -            spacing: Kirigami.Units.smallSpacing / 2
 -
@@ -155,12 +191,7 @@ index 9649ada..1d6b4f6 100644
 -                        features: { "tnum": 1 }
 -                    }
 -                }
-+            // a lista rola: o calendário fica sempre inteiro na tela
-+            maxListHeight: Math.max(Kirigami.Units.gridUnit * 6,
-+                // altura da tela do popup (desktopAvailableHeight soma todas as telas)
-+                Screen.height - expandedRoot.calendarPartHeight - Kirigami.Units.gridUnit * 9)
-+        }
- 
+-
 -                PlasmaComponents.Label {
 -                    id: amPmLabel
 -                    visible: root.timeFormatWithSeconds.toLowerCase().includes("ap")
@@ -178,52 +209,65 @@ index 9649ada..1d6b4f6 100644
 -                    Layout.topMargin: timeHeader.font.pixelSize * 0.12
 -                }
 -            }
-+        Rectangle {
-+            Layout.fillWidth: true
-+            Layout.leftMargin: -Kirigami.Units.largeSpacing
-+            Layout.rightMargin: -Kirigami.Units.largeSpacing
-+            implicitHeight: 1
-+            color: palette.surfaceBorder
-+        }
- 
--            PlasmaComponents.Label {
--                id: dateHeader
--                Layout.fillWidth: true
+-
+             PlasmaComponents.Label {
+                 id: dateHeader
+                 Layout.fillWidth: true
 -                horizontalAlignment: Text.AlignHCenter
 -                verticalAlignment: Text.AlignVCenter
--                textFormat: Text.PlainText
--                // Windows 11 omits the year from the date line.
+                 textFormat: Text.PlainText
+                 // Windows 11 omits the year from the date line.
 -                text: Qt.locale().toString(root.currentTime, "dddd, MMMM d")
 -                color: palette.textSecondary
 -                font {
 -                    family: Kirigami.Theme.defaultFont.family
 -                    pixelSize: Kirigami.Units.gridUnit * 1.1
 -                }
--            }
-+        // ── Data, como no cabeçalho do calendário do Windows 11 ──
-+        PlasmaComponents.Label {
-+            id: dateHeader
-+            Layout.fillWidth: true
-+            textFormat: Text.PlainText
-+            // Windows 11 omits the year from the date line.
-+            text: Qt.locale().toString(root.currentTime,
-+                      Qt.locale().dateFormat(Locale.LongFormat).replace(/[,\s]*('[^']*'\s*)?y+/, ""))
-+            color: palette.text
-+            font.weight: Font.DemiBold
++                text: Qt.locale().toString(root.currentTime,
++                          Qt.locale().dateFormat(Locale.LongFormat).replace(/[,\s]*('[^']*'\s*)?y+/, ""))
++                color: palette.text
++                font.weight: Font.DemiBold
++                elide: Text.ElideRight
++            }
++            PlasmaComponents.ToolButton {
++                icon.name: expandedRoot.collapsed ? "go-up" : "go-down"
++                display: PlasmaComponents.AbstractButton.IconOnly
++                text: expandedRoot.collapsed ? i18n("Show calendar") : i18n("Hide calendar")
++                PlasmaComponents.ToolTip.text: text
++                PlasmaComponents.ToolTip.visible: hovered
++                onClicked: Plasmoid.configuration.calendarCollapsed = !expandedRoot.collapsed
+             }
          }
  
          // ── Calendar grid ──
+         CalendarView {
+             id: calendarView
++            visible: !expandedRoot.collapsed
+             Layout.fillWidth: true
+             focus: true
+         }
+@@ -119,7 +86,8 @@ Item {
+             id: timeZoneView
+             Layout.fillWidth: true
+             Layout.preferredHeight: visible ? Kirigami.Units.gridUnit * 8 : 0
+-            visible: Plasmoid.configuration.selectedTimeZones.length > 1 || Plasmoid.configuration.showLocalTimezone
++            visible: !expandedRoot.collapsed
++                     && (Plasmoid.configuration.selectedTimeZones.length > 1 || Plasmoid.configuration.showLocalTimezone)
+         }
+     }
+ }
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
 new file mode 100644
-index 0000000..7b29485
+index 0000000..535f0ac
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,386 @@
 +/*
-+    Central de notificações do Windows 11, em cima do calendário do relógio:
-+    "Notificações" com o sino do Não incomodar e "Limpar tudo"; as
-+    notificações agrupadas por aplicativo, em cartões com hora, fechar e as
-+    ações; vazio, "Nenhuma nova notificação".
++    Central de notificações do Windows 11 (o painel de cima do relógio):
++    "Notificações" com "Limpar tudo" e o sino do Não incomodar; o link das
++    configurações; um cartão por aplicativo, com o nome dele, cada notificação
++    com a hora (e a seta que abre o texto longo) e, no fim do cartão,
++    "+N notificações" / "Ver menos"; vazio, "Nenhuma nova notificação".
 +
 +    Usa o mesmo motor da área de notificações do KDE (org.kde.notificationmanager):
 +    histórico, agrupamento, ações e o Não incomodar valem para os dois.
@@ -237,6 +281,7 @@ index 0000000..7b29485
 +import QtQuick.Layouts
 +
 +import org.kde.plasma.components as PlasmaComponents
++import org.kde.kcmutils as KCMUtils
 +import org.kde.kirigami as Kirigami
 +import org.kde.kquickcontrolsaddons as KQuickAddons
 +import org.kde.notificationmanager as NotificationManager
@@ -286,8 +331,8 @@ index 0000000..7b29485
 +        sortMode: NotificationManager.Notifications.SortByDate
 +        sortOrder: Qt.DescendingOrder
 +        groupMode: NotificationManager.Notifications.GroupApplicationsFlat
-+        groupLimit: 0 // todas as notificações de cada app, como no Windows
-+        expandUnread: true
++        groupLimit: 1 // grupo recolhido: só a mais recente, com "+N notificações"
++        expandUnread: false
 +    }
 +
 +    function clearAll() {
@@ -304,14 +349,43 @@ index 0000000..7b29485
 +    // ao abrir, tudo conta como lido (o sininho do relógio se apaga)
 +    function markRead() { notifications.lastRead = new Date(); }
 +
-+    function age(date) {
++    // a hora da notificação, como no Windows ("01:17"; de outro dia, a data)
++    function when(date) {
 +        if (!date) return "";
-+        const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
-+        if (minutes < 1) return i18n("Just now");
-+        if (minutes < 60) return i18n("%1 min", minutes);
 +        const sameDay = new Date().toDateString() === date.toDateString();
 +        return sameDay ? Qt.formatTime(date, Qt.locale().timeFormat(Locale.ShortFormat))
 +                       : Qt.locale().toString(date, "d/M HH:mm");
++    }
++
++    // ── grupos: a lista é "plana" (linha do grupo seguida das notificações dele) ──
++    // "revision" muda a cada alteração do modelo, para as ligações abaixo se refazerem
++    property int revision: 0
++    function bump() { revision++; }
++    Connections {
++        target: notifications
++        // depois que o modelo termina de mudar (inserções em sequência, grupos se formando)
++        function onDataChanged() { Qt.callLater(center.bump); }
++        function onRowsInserted() { Qt.callLater(center.bump); }
++        function onRowsRemoved() { Qt.callLater(center.bump); }
++        function onModelReset() { Qt.callLater(center.bump); }
++    }
++    function roleAt(row, role) {
++        // fora da lista o índice é inválido e o valor vem vazio
++        return row >= 0 ? notifications.data(notifications.index(row, 0), role) : undefined;
++    }
++    function groupRowOf(row) {
++        for (let r = row; r >= 0; --r) {
++            if (roleAt(r, NotificationManager.Notifications.IsGroupRole)) return r;
++        }
++        return -1;
++    }
++    function isLastOfCard(row) {
++        return !roleAt(row + 1, NotificationManager.Notifications.IsInGroupRole);
++    }
++    function toggleGroup(groupRow) {
++        const idx = notifications.index(groupRow, 0);
++        const expanded = notifications.data(idx, NotificationManager.Notifications.IsGroupExpandedRole);
++        notifications.setData(idx, !expanded, NotificationManager.Notifications.IsGroupExpandedRole);
 +    }
 +
 +    // ── cabeçalho ────────────────────────────────────────────────────────
@@ -324,7 +398,7 @@ index 0000000..7b29485
 +            font.weight: Font.DemiBold
 +            Layout.fillWidth: true
 +        }
-+        PlasmaComponents.ToolButton {
++        PlasmaComponents.Button {
 +            visible: center.count > 0
 +            text: i18n("Clear all")
 +            onClicked: center.clearAll()
@@ -341,28 +415,226 @@ index 0000000..7b29485
 +        }
 +    }
 +
-+    // ── lista ────────────────────────────────────────────────────────────
++    // ── link das configurações (o "Assistente de foco" do Windows) ───────
++    PlasmaComponents.ToolButton {
++        Layout.fillWidth: true
++        icon.name: "weather-clear-night"
++        text: i18n("Notification settings")
++        flat: true
++        contentItem: RowLayout {
++            spacing: Kirigami.Units.smallSpacing
++            Kirigami.Icon {
++                Layout.preferredWidth: Kirigami.Units.iconSizes.small
++                Layout.preferredHeight: Kirigami.Units.iconSizes.small
++                source: "weather-clear-night"
++                color: Kirigami.Theme.highlightColor
++                isMask: true
++            }
++            PlasmaComponents.Label {
++                Layout.fillWidth: true
++                text: i18n("Notification settings")
++                color: Kirigami.Theme.highlightColor
++            }
++        }
++        onClicked: KCMUtils.KCMLauncher.openSystemSettings("kcm_notifications")
++    }
++
++    // ── lista: um cartão por aplicativo ──────────────────────────────────
 +    ListView {
 +        id: list
 +        Layout.fillWidth: true
 +        Layout.preferredHeight: Math.min(contentHeight, center.maxListHeight)
 +        visible: count > 0
 +        clip: true
-+        spacing: Kirigami.Units.smallSpacing
++        spacing: 0
 +        boundsBehavior: Flickable.StopAtBounds
 +        model: notifications
 +        PlasmaComponents.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
 +
-+        add: Transition { NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 150 } }
-+        remove: Transition { NumberAnimation { properties: "x"; to: list.width; duration: 180; easing.type: Easing.InCubic } }
-+        displaced: Transition { NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutCubic } }
++        // sem transições de posição: as alturas mudam junto (cantos do cartão, "+N") e elas
++        // deixavam itens sobrepostos
 +
-+        delegate: Loader {
++        delegate: Item {
 +            id: row
 +            required property int index
 +            required property var model
++
++            readonly property bool isGroup: !!model.isGroup
++            readonly property bool inGroup: !!model.isInGroup
++            // ligações refeitas a cada mudança do modelo (center.revision)
++            readonly property bool lastOfCard: center.revision >= 0 && (isGroup ? false : center.isLastOfCard(index))
++            readonly property int groupRow: center.revision >= 0 && inGroup ? center.groupRowOf(index) : -1
++            readonly property int groupCount: groupRow >= 0 ? (center.roleAt(groupRow, NotificationManager.Notifications.GroupChildrenCountRole) || 0) : 0
++            readonly property bool groupExpanded: groupRow >= 0 && !!center.roleAt(groupRow, NotificationManager.Notifications.IsGroupExpandedRole)
++            readonly property bool showHeader: isGroup || !inGroup
++            readonly property bool showFooter: lastOfCard && groupCount > 1
++            property bool bodyExpanded: false
++
 +            width: ListView.view.width
-+            sourceComponent: model.isGroup ? groupHeader : card
++            height: card.height + (lastOfCard ? Kirigami.Units.largeSpacing : 0)
++
++            // o cartão do app: cantos de cima no cabeçalho, de baixo na última notificação
++            Kirigami.ShadowedRectangle {
++                id: card
++                width: parent.width
++                height: content.implicitHeight + (row.isGroup ? 0 : Kirigami.Units.largeSpacing)
++                color: center.tint(cardMouse.containsMouse && !row.isGroup && row.model.hasDefaultAction ? 0.085 : 0.06)
++                corners.topLeftRadius: row.showHeader ? 8 : 0
++                corners.topRightRadius: row.showHeader ? 8 : 0
++                corners.bottomLeftRadius: row.lastOfCard ? 8 : 0
++                corners.bottomRightRadius: row.lastOfCard ? 8 : 0
++                Behavior on color { ColorAnimation { duration: 120 } }
++
++                MouseArea {
++                    id: cardMouse
++                    anchors.fill: parent
++                    hoverEnabled: true
++                    cursorShape: !row.isGroup && row.model.hasDefaultAction ? Qt.PointingHandCursor : Qt.ArrowCursor
++                    onClicked: if (!row.isGroup && row.model.hasDefaultAction) {
++                        notifications.invokeDefaultAction(notifications.index(row.index, 0), NotificationManager.Notifications.Close);
++                    }
++                }
++
++                ColumnLayout {
++                    id: content
++                    anchors.left: parent.left
++                    anchors.right: parent.right
++                    anchors.top: parent.top
++                    anchors.leftMargin: Kirigami.Units.largeSpacing
++                    anchors.rightMargin: Kirigami.Units.largeSpacing
++                    spacing: 2
++
++                    // nome do aplicativo (no grupo, ou na notificação sozinha)
++                    RowLayout {
++                        visible: row.showHeader
++                        Layout.fillWidth: true
++                        Layout.topMargin: Kirigami.Units.largeSpacing
++                        Layout.bottomMargin: row.isGroup ? Kirigami.Units.smallSpacing : 0
++                        spacing: Kirigami.Units.smallSpacing
++                        Kirigami.Icon {
++                            Layout.preferredWidth: Kirigami.Units.iconSizes.small
++                            Layout.preferredHeight: Kirigami.Units.iconSizes.small
++                            source: row.model.applicationIconName || "preferences-desktop-notification"
++                        }
++                        PlasmaComponents.Label {
++                            Layout.fillWidth: true
++                            text: row.model.applicationName || ""
++                            elide: Text.ElideRight
++                            font.pointSize: Kirigami.Theme.smallFont.pointSize
++                        }
++                        PlasmaComponents.ToolButton {
++                            // fechar o grupo inteiro (ou a notificação sozinha)
++                            opacity: cardMouse.containsMouse || hovered ? 1 : 0
++                            Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium + 6
++                            Layout.preferredHeight: Layout.preferredWidth
++                            icon.name: "window-close"
++                            display: PlasmaComponents.AbstractButton.IconOnly
++                            text: i18n("Close")
++                            onClicked: notifications.close(notifications.index(row.index, 0))
++                        }
++                    }
++
++                    // a notificação: hora (com a seta do texto longo), título, texto, ações
++                    RowLayout {
++                        visible: !row.isGroup
++                        Layout.fillWidth: true
++                        Layout.topMargin: row.showHeader ? Kirigami.Units.smallSpacing : Kirigami.Units.largeSpacing
++                        spacing: Kirigami.Units.smallSpacing
++                        PlasmaComponents.Label {
++                            text: center.when(row.model.updated || row.model.created)
++                            opacity: 0.65
++                            font.pointSize: Kirigami.Theme.smallFont.pointSize
++                        }
++                        PlasmaComponents.ToolButton {
++                            visible: bodyLabel.truncated || row.bodyExpanded
++                            Layout.preferredWidth: Kirigami.Units.iconSizes.small + 8
++                            Layout.preferredHeight: Layout.preferredWidth
++                            icon.name: row.bodyExpanded ? "go-up" : "go-down"
++                            display: PlasmaComponents.AbstractButton.IconOnly
++                            text: row.bodyExpanded ? i18n("Show less") : i18n("Show more")
++                            onClicked: row.bodyExpanded = !row.bodyExpanded
++                        }
++                        Item { Layout.fillWidth: true }
++                        PlasmaComponents.ToolButton {
++                            visible: row.inGroup
++                            opacity: cardMouse.containsMouse || hovered ? 1 : 0
++                            Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium + 6
++                            Layout.preferredHeight: Layout.preferredWidth
++                            icon.name: "window-close"
++                            display: PlasmaComponents.AbstractButton.IconOnly
++                            text: i18n("Close")
++                            onClicked: notifications.close(notifications.index(row.index, 0))
++                        }
++                    }
++
++                    RowLayout {
++                        visible: !row.isGroup
++                        Layout.fillWidth: true
++                        spacing: Kirigami.Units.largeSpacing
++                        ColumnLayout {
++                            Layout.fillWidth: true
++                            Layout.alignment: Qt.AlignTop
++                            spacing: 2
++                            PlasmaComponents.Label {
++                                Layout.fillWidth: true
++                                text: row.model.summary || ""
++                                visible: text.length > 0
++                                elide: Text.ElideRight
++                            }
++                            PlasmaComponents.Label {
++                                id: bodyLabel
++                                Layout.fillWidth: true
++                                visible: text.length > 0
++                                text: row.model.body || ""
++                                textFormat: Text.StyledText
++                                wrapMode: Text.Wrap
++                                maximumLineCount: row.bodyExpanded ? 12 : 2
++                                elide: Text.ElideRight
++                                opacity: 0.75
++                                onLinkActivated: link => Qt.openUrlExternally(link)
++                            }
++                        }
++                        // imagem da notificação (foto do contato, capa…), à direita como no Windows
++                        KQuickAddons.QImageItem {
++                            visible: !!row.model.image
++                            Layout.preferredWidth: Kirigami.Units.iconSizes.large
++                            Layout.preferredHeight: Kirigami.Units.iconSizes.large
++                            Layout.alignment: Qt.AlignTop
++                            image: typeof row.model.image === "undefined" ? undefined : row.model.image
++                            fillMode: KQuickAddons.QImageItem.PreserveAspectCrop
++                        }
++                    }
++
++                    // botões de ação ("Responder", "Abrir"…)
++                    RowLayout {
++                        readonly property var names: row.model.actionNames || []
++                        readonly property var labels: row.model.actionLabels || []
++                        visible: !row.isGroup && names.length > 0
++                        Layout.fillWidth: true
++                        Layout.topMargin: Kirigami.Units.smallSpacing
++                        spacing: Kirigami.Units.smallSpacing
++                        Repeater {
++                            model: parent.names.length
++                            PlasmaComponents.Button {
++                                required property int index
++                                Layout.fillWidth: true
++                                text: parent.labels[index] || ""
++                                onClicked: notifications.invokeAction(notifications.index(row.index, 0),
++                                                                      parent.names[index], NotificationManager.Notifications.Close)
++                            }
++                        }
++                    }
++
++                    // fim do cartão: "+N notificações" (recolhido) ou "Ver menos" (aberto)
++                    PlasmaComponents.Button {
++                        visible: row.showFooter
++                        Layout.topMargin: Kirigami.Units.smallSpacing
++                        text: row.groupExpanded ? i18n("Show less")
++                                                : i18np("+%1 notification", "+%1 notifications", row.groupCount - 1)
++                        onClicked: center.toggleGroup(row.groupRow)
++                    }
++                }
++            }
 +        }
 +    }
 +
@@ -375,162 +647,57 @@ index 0000000..7b29485
 +        opacity: 0.7
 +        text: i18n("No new notifications")
 +    }
++}
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml
+new file mode 100644
+index 0000000..7dc62c6
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml
+@@ -0,0 +1,46 @@
++/*
++    Painel de cima do relógio (Windows 11): a central de notificações, numa
++    janela própria acima do calendário.
 +
-+    // ── nome do aplicativo do grupo ──────────────────────────────────────
-+    Component {
-+        id: groupHeader
-+        Item {
-+            id: header
-+            readonly property var m: parent && parent.model ? parent.model : ({}) // some ao sair da lista
-+            readonly property int row: parent.index
-+            implicitHeight: Kirigami.Units.gridUnit * 1.8
-+            HoverHandler { id: headerHover }
-+            RowLayout {
-+                anchors.fill: parent
-+                anchors.leftMargin: 4
-+                spacing: Kirigami.Units.smallSpacing
-+                Kirigami.Icon {
-+                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
-+                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-+                    source: header.m.applicationIconName || "preferences-desktop-notification"
-+                }
-+                PlasmaComponents.Label {
-+                    Layout.fillWidth: true
-+                    text: header.m.applicationName || ""
-+                    elide: Text.ElideRight
-+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-+                }
-+                PlasmaComponents.ToolButton {
-+                    visible: headerHover.hovered
-+                    icon.name: "window-close"
-+                    display: PlasmaComponents.AbstractButton.IconOnly
-+                    text: i18n("Close")
-+                    onClicked: notifications.close(notifications.index(header.row, 0))
-+                }
-+            }
++    SPDX-License-Identifier: GPL-2.0-or-later
++*/
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.plasmoid
++import org.kde.kirigami as Kirigami
++
++Item {
++    id: panel
++
++    property bool open: false
++    property real maxHeight: Kirigami.Units.gridUnit * 30
++
++    // o Dialog ajusta o conteúdo ao tamanho da janela: o tamanho vem dos limites do Layout
++    readonly property real wantedWidth: Plasmoid.configuration.expandedWidth || Kirigami.Units.gridUnit * 20
++    readonly property real wantedHeight: center.implicitHeight + Kirigami.Units.largeSpacing * 2
++    width: wantedWidth
++    height: wantedHeight
++    implicitWidth: wantedWidth
++    implicitHeight: wantedHeight
++    Layout.minimumWidth: wantedWidth
++    Layout.maximumWidth: wantedWidth
++    Layout.minimumHeight: wantedHeight
++    Layout.maximumHeight: wantedHeight
++
++    // ao abrir, as notificações contam como lidas
++    onOpenChanged: if (open) center.markRead()
++
++    NotificationCenter {
++        id: center
++        anchors {
++            left: parent.left
++            right: parent.right
++            top: parent.top
++            margins: Kirigami.Units.largeSpacing
 +        }
-+    }
-+
-+    // ── cartão de uma notificação ────────────────────────────────────────
-+    Component {
-+        id: card
-+        Rectangle {
-+            id: cardItem
-+            readonly property var m: parent && parent.model ? parent.model : ({}) // some ao sair da lista
-+            readonly property int row: parent.index
-+            readonly property var actionNames: m.actionNames || []
-+            readonly property var actionLabels: m.actionLabels || []
-+
-+            implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
-+            radius: 8
-+            color: cardMouse.containsMouse && m.hasDefaultAction ? center.tint(0.085) : center.tint(0.06)
-+            border.width: 1
-+            border.color: center.tint(0.08)
-+            Behavior on color { ColorAnimation { duration: 120 } }
-+
-+            MouseArea {
-+                id: cardMouse
-+                anchors.fill: parent
-+                hoverEnabled: true
-+                cursorShape: cardItem.m.hasDefaultAction ? Qt.PointingHandCursor : Qt.ArrowCursor
-+                onClicked: if (cardItem.m.hasDefaultAction) {
-+                    notifications.invokeDefaultAction(notifications.index(cardItem.row, 0), NotificationManager.Notifications.Close);
-+                }
-+            }
-+
-+            PlasmaComponents.ToolButton {
-+                id: closeButton
-+                z: 1
-+                visible: cardMouse.containsMouse || hovered
-+                anchors.top: parent.top
-+                anchors.right: parent.right
-+                anchors.margins: 4
-+                width: Kirigami.Units.iconSizes.smallMedium + 8
-+                height: width
-+                icon.name: "window-close"
-+                display: PlasmaComponents.AbstractButton.IconOnly
-+                text: i18n("Close")
-+                onClicked: notifications.close(notifications.index(cardItem.row, 0))
-+            }
-+
-+            ColumnLayout {
-+                id: content
-+                anchors.fill: parent
-+                anchors.margins: Kirigami.Units.largeSpacing
-+                spacing: Kirigami.Units.smallSpacing
-+
-+                RowLayout {
-+                    Layout.fillWidth: true
-+                    spacing: Kirigami.Units.largeSpacing
-+
-+                    // imagem da notificação (foto do contato, capa…) ou o ícone dela
-+                    Item {
-+                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
-+                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
-+                        Layout.alignment: Qt.AlignTop
-+                        KQuickAddons.QImageItem {
-+                            anchors.fill: parent
-+                            visible: !!cardItem.m.image
-+                            image: typeof cardItem.m.image === "undefined" ? undefined : cardItem.m.image
-+                            fillMode: KQuickAddons.QImageItem.PreserveAspectFit
-+                        }
-+                        Kirigami.Icon {
-+                            anchors.fill: parent
-+                            visible: !cardItem.m.image
-+                            source: cardItem.m.iconName || cardItem.m.applicationIconName || "preferences-desktop-notification"
-+                        }
-+                    }
-+
-+                    ColumnLayout {
-+                        Layout.fillWidth: true
-+                        spacing: 2
-+                        RowLayout {
-+                            Layout.fillWidth: true
-+                            PlasmaComponents.Label {
-+                                Layout.fillWidth: true
-+                                text: cardItem.m.summary || cardItem.m.applicationName || ""
-+                                font.weight: Font.DemiBold
-+                                elide: Text.ElideRight
-+                            }
-+                            PlasmaComponents.Label {
-+                                // no hover, o X (por cima, no canto) ocupa o lugar da hora
-+                                opacity: cardMouse.containsMouse || closeButton.hovered ? 0 : 0.6
-+                                text: center.age(cardItem.m.updated || cardItem.m.created)
-+                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-+                            }
-+                        }
-+                        PlasmaComponents.Label {
-+                            Layout.fillWidth: true
-+                            visible: text.length > 0
-+                            text: cardItem.m.body || ""
-+                            textFormat: Text.StyledText
-+                            wrapMode: Text.Wrap
-+                            maximumLineCount: 4
-+                            elide: Text.ElideRight
-+                            opacity: 0.85
-+                            onLinkActivated: link => Qt.openUrlExternally(link)
-+                        }
-+                    }
-+                }
-+
-+                // botões de ação ("Responder", "Abrir"…)
-+                RowLayout {
-+                    visible: cardItem.actionNames.length > 0
-+                    Layout.fillWidth: true
-+                    spacing: Kirigami.Units.smallSpacing
-+                    Repeater {
-+                        model: cardItem.actionNames.length
-+                        PlasmaComponents.Button {
-+                            required property int index
-+                            Layout.fillWidth: true
-+                            text: cardItem.actionLabels[index] || ""
-+                            onClicked: notifications.invokeAction(notifications.index(cardItem.row, 0),
-+                                                                  cardItem.actionNames[index], NotificationManager.Notifications.Close)
-+                        }
-+                    }
-+                }
-+            }
-+        }
++        // a lista rola quando não cabe na tela (cabeçalho e link ficam fixos)
++        maxListHeight: Math.max(Kirigami.Units.gridUnit * 6, panel.maxHeight - Kirigami.Units.gridUnit * 5)
 +    }
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/Win11Palette.qml
@@ -552,6 +719,119 @@ index 1f38bae..5273b41 100644
      readonly property color hover:            isDark ? "#3F3F3F" : "#E9E9E9"
      readonly property color pressed:          isDark ? "#4A4A4A" : "#DADADA"
      readonly property color selected:         isDark ? "#2C2C2C" : "#F3F3F3"
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
+index 5295e21..f631da1 100644
+--- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
+@@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
+ 
+ import QtQuick
+ import QtQuick.Layouts
++import QtQuick.Window
+ 
+ import org.kde.plasma.plasmoid
+ import org.kde.plasma.core as PlasmaCore
+@@ -148,17 +149,93 @@ PlasmoidItem {
+         }
+     }
+ 
+-    Component {
+-        id: fullRep
+-        ExpandedRepresentation {}
++    compactRepresentation: compactRep
++    // o popup padrão não é usado (ver os dois painéis abaixo), mas o Plasma precisa
++    // de uma representação "cheia" para mostrar a compacta no painel
++    fullRepresentation: Item {}
++
++    // Como no Windows 11, o relógio abre dois painéis separados: as notificações em
++    // cima e o calendário embaixo, cada um com o fundo do tema (desfoque e sombra).
++    // Não usa o popup padrão do Plasma, que é uma janela só.
++    property bool centerOpen: false
++    property real lastClosed: 0
++    activationTogglesExpanded: false
++
++    function toggleCenter() {
++        // o clique no relógio tira o foco dos painéis (e os fecha) antes de chegar aqui
++        if (!centerOpen && Date.now() - lastClosed < 300) return;
++        centerOpen = !centerOpen;
+     }
++    onCenterOpenChanged: if (!centerOpen) lastClosed = Date.now()
+ 
+-    compactRepresentation: compactRep
++    Connections {
++        target: Plasmoid
++        function onActivated() { root.toggleCenter(); }
++    }
++
++    readonly property int panelGap: Kirigami.Units.largeSpacing
++
++    // Posição dos painéis (como o menu Iniciar): encostados à direita da tela,
++    // 12 px acima da barra; as notificações logo acima do calendário.
++    readonly property int edgeMargin: 12
++    function placePanels() {
++        const screen = root.screenGeometry;
++        const panelThickness = Math.max(root.Window.height, root.height);
++        const right = screen.x + screen.width - root.edgeMargin;
++        calendarDialog.x = right - calendarDialog.width;
++        switch (Plasmoid.location) {
++        case PlasmaCore.Types.TopEdge:
++            calendarDialog.y = screen.y + panelThickness + root.edgeMargin;
++            notificationsDialog.y = calendarDialog.y + calendarDialog.height + root.panelGap;
++            break;
++        default:
++            calendarDialog.y = screen.y + screen.height - panelThickness - root.edgeMargin - calendarDialog.height;
++            notificationsDialog.y = calendarDialog.y - root.panelGap - notificationsDialog.height;
++        }
++        notificationsDialog.x = right - notificationsDialog.width;
++    }
+ 
+-    fullRepresentation: fullRep
++    PlasmaCore.Dialog {
++        id: calendarDialog
++        visible: root.centerOpen
++        location: PlasmaCore.Types.Floating
++        flags: Qt.WindowStaysOnTopHint
++        hideOnWindowDeactivate: false
++        backgroundHints: PlasmaCore.Dialog.StandardBackground
++        mainItem: ExpandedRepresentation {
++            id: calendarPanel
++            open: root.centerOpen
++        }
++        onWidthChanged: if (visible) root.placePanels()
++        onHeightChanged: if (visible) root.placePanels()
++        onVisibleChanged: if (visible) { root.placePanels(); requestActivate(); }
++        onActiveChanged: closeCheck.restart()
++    }
+ 
+-    activationTogglesExpanded: true
+-    hideOnWindowDeactivate: !Plasmoid.configuration.pin
++    PlasmaCore.Dialog {
++        id: notificationsDialog
++        visible: root.centerOpen
++        location: PlasmaCore.Types.Floating
++        flags: Qt.WindowStaysOnTopHint
++        hideOnWindowDeactivate: false
++        backgroundHints: PlasmaCore.Dialog.StandardBackground
++        onWidthChanged: if (visible) root.placePanels()
++        onHeightChanged: if (visible) root.placePanels()
++        onVisibleChanged: if (visible) root.placePanels()
++        mainItem: NotificationPanel {
++            open: root.centerOpen
++            maxHeight: Screen.height - calendarDialog.height - Kirigami.Units.gridUnit * 8
++        }
++        onActiveChanged: closeCheck.restart()
++    }
++
++    // fecha os dois quando o foco sai dos dois (como hideOnWindowDeactivate, para o par)
++    Timer {
++        id: closeCheck
++        interval: 150
++        onTriggered: if (root.centerOpen && !calendarDialog.active && !notificationsDialog.active
++                         && !Plasmoid.configuration.pin) root.centerOpen = false
++    }
+ 
+     Connections {
+         target: Plasmoid.configuration
 diff --git a/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh b/plasma/applets/org.kde.windowsmodern.startmenu/contents/code/program-location.sh
 new file mode 100755
 index 0000000..228c0f0
