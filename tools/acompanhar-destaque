@@ -15,20 +15,42 @@ ignore_until=0
 # O Kvantum só lê o tema ao abrir o app, então eles mudam quando forem abertos de novo.
 KV="${XDG_CONFIG_HOME:-$HOME/.config}/Kvantum"
 sync_kvantum() {
-    local src="$KV/Windows-modern" dst="$KV/Windows-11" rgb hex
+    local src="$KV/Windows-modern" dst="$KV/Windows-11" rgb hex transp
     [ -d "$src" ] || return 0
     rgb=$(kreadconfig6 --file kdeglobals --group General --key AccentColor)
     [ -n "$rgb" ] && hex=$(printf '#%02X%02X%02X' ${rgb//,/ }) || hex="#4CC2FF"
-    [ "$(cat "$dst/.destaque" 2>/dev/null)" = "$hex" ] && return 0
+    # "Efeitos de transparência" (Configurações › Personalização › Cores): ligado = janelas
+    # translúcidas, num tom que sobre papel de parede escuro dá o #202020 do Windows;
+    # desligado = sólidas em #202020
+    transp=$(kreadconfig6 --file plasma-w11rc --group Aparencia --key Transparencia --default true)
+    [ "$(cat "$dst/.destaque" 2>/dev/null)" = "$hex $transp" ] && return 0
     mkdir -p "$dst"
-    sed "s/#4CC2FF/$hex/Ig" "$src/Windows-modernDark.kvconfig" > "$dst/Windows-11Dark.kvconfig"
-    sed "s/#4CC2FF/$hex/Ig" "$src/Windows-modernDark.svg" > "$dst/Windows-11Dark.svg"
-    sed "s/#0067C0/$hex/Ig" "$src/Windows-modern.kvconfig" > "$dst/Windows-11.kvconfig"
-    sed "s/#0067C0/$hex/Ig" "$src/Windows-modern.svg" > "$dst/Windows-11.svg"
-    echo "$hex" > "$dst/.destaque"
+    for v in Dark ""; do
+        local blue; [ -n "$v" ] && blue="#4CC2FF" || blue="#0067C0"
+        sed -e "s/$blue/$hex/Ig" \
+            -e "s/^translucent_windows=.*/translucent_windows=$transp/" \
+            -e "s/^blurring=.*/blurring=$transp/" \
+            "$src/Windows-modern$v.kvconfig" > "$dst/Windows-11$v.kvconfig"
+        # sem transparência, o fundo das janelas fica sólido (o tema desenha com opacidade 0,8)
+        local glass
+        if [ "$transp" = true ]; then
+            # o tema original (#202020 a 80%) fica quase preto sobre papel de parede escuro
+            glass='/id="window-/{s/fill="#202020"/fill="#2B2B2B"/;s/opacity="[.0-9]*"/opacity=".85"/}'
+        else
+            glass='/id="window-/s/opacity="[.0-9]*"/opacity="1"/'
+        fi
+        sed -e "s/$blue/$hex/Ig" -e "$glass" "$src/Windows-modern$v.svg" > "$dst/Windows-11$v.svg"
+    done
+    echo "$hex $transp" > "$dst/.destaque"
     [ "$(kreadconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme)" = Windows-11 ] \
         || kwriteconfig6 --file "$KV/kvantum.kvconfig" --group General --key theme Windows-11
 }
+
+# "acompanhar-destaque --agora": só atualiza o tema (usado pela página Cores) e sai
+if [ "${1:-}" = --agora ]; then
+    sync_kvantum
+    exit 0
+fi
 sync_kvantum
 
 dbus-monitor --session "type='signal',interface='org.kde.KGlobalSettings',member='notifyChange'" 2>/dev/null |

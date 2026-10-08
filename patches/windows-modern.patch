@@ -78,10 +78,18 @@ index e8cb979..5709acb 100644
              textFormat: Text.PlainText
  
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-index 9649ada..6ce0879 100644
+index 9649ada..301d49b 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-@@ -18,16 +18,18 @@ Item {
+@@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
+ 
+ import QtQuick
+ import QtQuick.Layouts
++import QtQuick.Window
+ 
+ import org.kde.plasma.plasmoid
+ import org.kde.plasma.components as PlasmaComponents
+@@ -18,16 +19,23 @@ Item {
  
      Win11Palette { id: palette }
  
@@ -97,13 +105,18 @@ index 9649ada..6ce0879 100644
      Layout.maximumHeight: implicitHeight
      clip: true
  
++    // altura de tudo que fica abaixo das notificações (data, calendário, fusos)
++    readonly property real calendarPartHeight: dateHeader.implicitHeight + calendarView.implicitHeight
++        + (timeZoneView.visible ? timeZoneView.Layout.preferredHeight : 0)
++        + mainColumn.spacing * 4 + Kirigami.Units.largeSpacing * 2
++
 +    // ao abrir, as notificações contam como lidas
 +    onVisibleChanged: if (visible) notificationCenter.markRead()
 +
      // The popup fill, border and shadow are supplied by the Plasma theme's
      // dialogs/background.svg; we only lay out the content here.
      ColumnLayout {
-@@ -40,71 +42,30 @@ Item {
+@@ -40,71 +48,34 @@ Item {
          }
          spacing: Kirigami.Units.largeSpacing
  
@@ -142,6 +155,10 @@ index 9649ada..6ce0879 100644
 -                        features: { "tnum": 1 }
 -                    }
 -                }
++            // a lista rola: o calendário fica sempre inteiro na tela
++            maxListHeight: Math.max(Kirigami.Units.gridUnit * 6,
++                Screen.desktopAvailableHeight - expandedRoot.calendarPartHeight
++                - Kirigami.Units.gridUnit * 6)
 +        }
  
 -                PlasmaComponents.Label {
