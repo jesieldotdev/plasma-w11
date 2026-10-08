@@ -1,13 +1,17 @@
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
-index ff91ae3..84bf7d4 100644
+index ff91ae3..c3e15ce 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/config/main.xml
-@@ -117,6 +117,10 @@
+@@ -117,6 +117,14 @@
        <label>Vertical padding around the compact clock text as a fraction of panel height.</label>
        <default>0.18</default>
      </entry>
 +    <entry name="calendarCollapsed" type="Bool">
 +      <label>Calendar folded to just the date bar, as in Windows 11.</label>
++      <default>false</default>
++    </entry>
++    <entry name="notesCollapsed" type="Bool">
++      <label>Sticky notes panel (notas-w11) folded to just its bar.</label>
 +      <default>false</default>
 +    </entry>
      <entry name="expandedWidth" type="Int">
@@ -456,6 +460,244 @@ index 9649ada..7cf9a8a 100644
          }
      }
  }
+diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml
+new file mode 100644
+index 0000000..d0c9fe1
+--- /dev/null
++++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotesPanel.qml
+@@ -0,0 +1,232 @@
++/*
++    Painel das Notas Autoadesivas (notas-w11) no relógio, entre as
++    notificações e o calendário: barra recolhível com "+" e, aberta, as
++    notas fixadas e as mais recentes. Lê o arquivo que o notas-w11 mantém
++    atualizado e abre as notas pelo comando dele. Sem o notas-w11, some.
++*/
++
++pragma ComponentBehavior: Bound
++
++import QtQuick
++import QtQuick.Layouts
++
++import org.kde.plasma.plasmoid
++import org.kde.plasma.components as PlasmaComponents
++import org.kde.plasma.plasma5support as Plasma5Support
++import org.kde.kirigami as Kirigami
++
++Item {
++    id: panel
++
++    property bool open: false
++    readonly property bool collapsed: Plasmoid.configuration.notesCollapsed
++    readonly property bool available: notes !== null
++    property var notes: null           // null = notas-w11 não instalado
++    readonly property int shown: 4     // quantas notas aparecem
++    readonly property string cmd: "\"$HOME/.local/bin/notas-w11\""
++
++    Win11Palette { id: palette }
++
++    // paleta escura do Keep (a mesma do notas-w11)
++    readonly property var barColors: ({ DEFAULT: "#4a4c52", RED: "#b4294a", ORANGE: "#b4501f", YELLOW: "#c58a12",
++        GREEN: "#3f8b62", TEAL: "#159b92", BLUE: "#3a95b2", CERULEAN: "#41698a", PURPLE: "#7a4f9c",
++        PINK: "#a95a7c", BROWN: "#7d7262", GRAY: "#62666c" })
++
++    readonly property real wantedWidth: Plasmoid.configuration.expandedWidth || Kirigami.Units.gridUnit * 20
++    readonly property real wantedHeight: column.implicitHeight + Kirigami.Units.largeSpacing * 2
++    width: wantedWidth
++    height: wantedHeight
++    implicitWidth: wantedWidth
++    implicitHeight: wantedHeight
++    Layout.minimumWidth: wantedWidth
++    Layout.maximumWidth: wantedWidth
++    Layout.minimumHeight: wantedHeight
++    Layout.maximumHeight: wantedHeight
++    clip: true
++
++    function run(args) { runner.connectSource(cmd + " " + args); }
++
++    Plasma5Support.DataSource {
++        id: feed
++        engine: "executable"
++        readonly property string source: "cat \"$HOME/.local/share/notas-w11/notes.json\" 2>/dev/null || echo MISSING"
++        connectedSources: [source]
++        interval: panel.open ? 3000 : 60000
++        onNewData: (sourceName, data) => {
++            const out = (data["stdout"] || "").trim();
++            if (out === "MISSING" || out.length === 0) { panel.notes = null; return; }
++            try { panel.notes = JSON.parse(out).notes || []; } catch (e) { }
++        }
++    }
++    Plasma5Support.DataSource {
++        id: runner
++        engine: "executable"
++        connectedSources: []
++        onNewData: sourceName => disconnectSource(sourceName)
++    }
++
++    // entra subindo junto com os outros painéis
++    onOpenChanged: if (open) { feed.connectSource(feed.source); openAnim.restart(); }
++    SequentialAnimation {
++        id: openAnim
++        PropertyAction { target: column; property: "opacity"; value: 0 }
++        PauseAnimation { duration: 30 }
++        ParallelAnimation {
++            NumberAnimation { target: slide; property: "y"; from: Kirigami.Units.gridUnit * 1.2; to: 0; duration: 260; easing.type: Easing.OutCubic }
++            NumberAnimation { target: column; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++        }
++    }
++
++    ColumnLayout {
++        id: column
++        transform: Translate { id: slide }
++        anchors {
++            left: parent.left
++            right: parent.right
++            top: parent.top
++            margins: Kirigami.Units.largeSpacing
++        }
++        spacing: Kirigami.Units.smallSpacing
++
++        // ── barra: ícone, título, + e a seta de recolher ──
++        RowLayout {
++            Layout.fillWidth: true
++            spacing: Kirigami.Units.smallSpacing
++            Kirigami.Icon {
++                Layout.preferredWidth: Kirigami.Units.iconSizes.small
++                Layout.preferredHeight: Kirigami.Units.iconSizes.small
++                source: "knotes"
++            }
++            PlasmaComponents.Label {
++                Layout.fillWidth: true
++                text: i18n("Sticky Notes")
++                color: palette.text
++                font.weight: Font.DemiBold
++                elide: Text.ElideRight
++            }
++            PlasmaComponents.ToolButton {
++                icon.name: "list-add"
++                display: PlasmaComponents.AbstractButton.IconOnly
++                text: i18n("New note")
++                PlasmaComponents.ToolTip.text: text
++                PlasmaComponents.ToolTip.visible: hovered
++                onClicked: panel.run("--new")
++            }
++            PlasmaComponents.ToolButton {
++                display: PlasmaComponents.AbstractButton.IconOnly
++                text: panel.collapsed ? i18n("Show notes") : i18n("Hide notes")
++                contentItem: Kirigami.Icon {
++                    source: "go-up"
++                    implicitWidth: Kirigami.Units.iconSizes.small
++                    implicitHeight: Kirigami.Units.iconSizes.small
++                    rotation: panel.collapsed ? 0 : 180
++                    Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
++                }
++                PlasmaComponents.ToolTip.text: text
++                PlasmaComponents.ToolTip.visible: hovered
++                onClicked: Plasmoid.configuration.notesCollapsed = !panel.collapsed
++            }
++        }
++
++        // ── as notas (a altura anima ao recolher/abrir) ──
++        Item {
++            Layout.fillWidth: true
++            Layout.preferredHeight: panel.collapsed ? 0 : body.implicitHeight
++            clip: true
++            Behavior on Layout.preferredHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++
++            ColumnLayout {
++                id: body
++                width: parent.width
++                spacing: Kirigami.Units.smallSpacing
++                opacity: panel.collapsed ? 0 : 1
++                Behavior on opacity { NumberAnimation { duration: 180 } }
++
++                Repeater {
++                    model: panel.notes ? panel.notes.slice(0, panel.shown) : []
++                    delegate: Rectangle {
++                        id: card
++                        required property var modelData
++                        required property int index
++                        readonly property string preview: modelData.isList
++                            ? modelData.items.map(i => (i.checked ? "☑ " : "☐ ") + i.text).join("  ")
++                            : modelData.text
++                        Layout.fillWidth: true
++                        Layout.topMargin: index === 0 ? Kirigami.Units.smallSpacing : 0
++                        implicitHeight: cardText.implicitHeight + Kirigami.Units.largeSpacing * 1.5
++                        radius: 6
++                        color: Qt.rgba(palette.text.r, palette.text.g, palette.text.b, cardMouse.containsMouse ? 0.085 : 0.05)
++                        clip: true
++                        Behavior on color { ColorAnimation { duration: 120 } }
++
++                        // faixa da cor da nota, à esquerda
++                        Rectangle {
++                            width: 3
++                            height: parent.height - 12
++                            x: 6
++                            anchors.verticalCenter: parent.verticalCenter
++                            radius: 1.5
++                            color: panel.barColors[card.modelData.color] || panel.barColors.DEFAULT
++                        }
++                        ColumnLayout {
++                            id: cardText
++                            anchors.left: parent.left
++                            anchors.right: parent.right
++                            anchors.verticalCenter: parent.verticalCenter
++                            anchors.leftMargin: 16
++                            anchors.rightMargin: 10
++                            spacing: 0
++                            PlasmaComponents.Label {
++                                Layout.fillWidth: true
++                                visible: text.length > 0
++                                text: (card.modelData.pinned ? "📌 " : "") + (card.modelData.title || "")
++                                color: palette.text
++                                font.weight: Font.DemiBold
++                                elide: Text.ElideRight
++                            }
++                            PlasmaComponents.Label {
++                                Layout.fillWidth: true
++                                text: card.preview || i18n("Empty note")
++                                color: palette.textSecondary
++                                elide: Text.ElideRight
++                                maximumLineCount: 2
++                                wrapMode: Text.Wrap
++                            }
++                        }
++                        MouseArea {
++                            id: cardMouse
++                            anchors.fill: parent
++                            hoverEnabled: true
++                            cursorShape: Qt.PointingHandCursor
++                            onClicked: panel.run("--open " + card.modelData.id)
++                        }
++
++                        // entram com fade, um depois do outro
++                        opacity: 0
++                        Component.onCompleted: fadeIn.start()
++                        SequentialAnimation {
++                            id: fadeIn
++                            PauseAnimation { duration: card.index * 40 }
++                            NumberAnimation { target: card; property: "opacity"; to: 1; duration: 180 }
++                        }
++                    }
++                }
++
++                PlasmaComponents.Label {
++                    visible: panel.notes !== null && panel.notes.length === 0
++                    Layout.fillWidth: true
++                    Layout.topMargin: Kirigami.Units.smallSpacing
++                    text: i18n("No notes yet")
++                    color: palette.textSecondary
++                }
++
++                PlasmaComponents.ToolButton {
++                    Layout.alignment: Qt.AlignRight
++                    text: panel.notes && panel.notes.length > panel.shown
++                          ? i18n("See all (%1)", panel.notes.length) : i18n("See all")
++                    onClicked: panel.run("")
++                }
++            }
++        }
++    }
++}
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
 new file mode 100644
 index 0000000..1922ab0
@@ -941,7 +1183,7 @@ index 1f38bae..5273b41 100644
      readonly property color pressed:          isDark ? "#4A4A4A" : "#DADADA"
      readonly property color selected:         isDark ? "#2C2C2C" : "#F3F3F3"
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
-index 5295e21..f631da1 100644
+index 5295e21..b188624 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/main.qml
 @@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
@@ -952,7 +1194,7 @@ index 5295e21..f631da1 100644
  
  import org.kde.plasma.plasmoid
  import org.kde.plasma.core as PlasmaCore
-@@ -148,17 +149,93 @@ PlasmoidItem {
+@@ -148,17 +149,125 @@ PlasmoidItem {
          }
      }
  
@@ -1004,6 +1246,17 @@ index 5295e21..f631da1 100644
 +            notificationsDialog.y = calendarDialog.y - root.panelGap - notificationsDialog.height;
 +        }
 +        notificationsDialog.x = right - notificationsDialog.width;
++        // notas (notas-w11) entre as notificações e o calendário, quando instalado
++        notesDialog.x = right - notesDialog.width;
++        if (notesPanel.available) {
++            if (Plasmoid.location === PlasmaCore.Types.TopEdge) {
++                notesDialog.y = calendarDialog.y + calendarDialog.height + root.panelGap;
++                notificationsDialog.y = notesDialog.y + notesDialog.height + root.panelGap;
++            } else {
++                notesDialog.y = calendarDialog.y - root.panelGap - notesDialog.height;
++                notificationsDialog.y = notesDialog.y - root.panelGap - notificationsDialog.height;
++            }
++        }
 +    }
  
 -    fullRepresentation: fullRep
@@ -1023,9 +1276,7 @@ index 5295e21..f631da1 100644
 +        onVisibleChanged: if (visible) { root.placePanels(); requestActivate(); }
 +        onActiveChanged: closeCheck.restart()
 +    }
- 
--    activationTogglesExpanded: true
--    hideOnWindowDeactivate: !Plasmoid.configuration.pin
++
 +    PlasmaCore.Dialog {
 +        id: notificationsDialog
 +        visible: root.centerOpen
@@ -1042,12 +1293,35 @@ index 5295e21..f631da1 100644
 +        }
 +        onActiveChanged: closeCheck.restart()
 +    }
+ 
+-    activationTogglesExpanded: true
+-    hideOnWindowDeactivate: !Plasmoid.configuration.pin
++    PlasmaCore.Dialog {
++        id: notesDialog
++        visible: root.centerOpen && notesPanel.available
++        location: PlasmaCore.Types.Floating
++        flags: Qt.WindowStaysOnTopHint
++        hideOnWindowDeactivate: false
++        backgroundHints: PlasmaCore.Dialog.StandardBackground
++        mainItem: NotesPanel {
++            id: notesPanel
++            open: root.centerOpen
++        }
++        onWidthChanged: if (visible) root.placePanels()
++        onHeightChanged: if (visible) root.placePanels()
++        onVisibleChanged: if (visible) root.placePanels()
++        onActiveChanged: closeCheck.restart()
++    }
++    Connections {
++        target: notesPanel
++        function onAvailableChanged() { if (root.centerOpen) root.placePanels(); }
++    }
 +
 +    // fecha os dois quando o foco sai dos dois (como hideOnWindowDeactivate, para o par)
 +    Timer {
 +        id: closeCheck
 +        interval: 150
-+        onTriggered: if (root.centerOpen && !calendarDialog.active && !notificationsDialog.active
++        onTriggered: if (root.centerOpen && !calendarDialog.active && !notificationsDialog.active && !notesDialog.active
 +                         && !Plasmoid.configuration.pin) root.centerOpen = false
 +    }
  
