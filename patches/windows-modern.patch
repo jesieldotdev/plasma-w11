@@ -102,7 +102,7 @@ index e8cb979..df0c9f5 100644
              textFormat: Text.PlainText
  
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-index 9649ada..bbd96eb 100644
+index 9649ada..1e1002c 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 @@ -4,6 +4,12 @@
@@ -118,7 +118,7 @@ index 9649ada..bbd96eb 100644
  pragma ComponentBehavior: Bound
  
  import QtQuick
-@@ -16,20 +22,23 @@ import org.kde.kirigami as Kirigami
+@@ -16,22 +22,34 @@ import org.kde.kirigami as Kirigami
  Item {
      id: expandedRoot
  
@@ -147,13 +147,24 @@ index 9649ada..bbd96eb 100644
 +    Layout.maximumWidth: wantedWidth
 +    Layout.minimumHeight: wantedHeight
 +    Layout.maximumHeight: wantedHeight
++
++    // Windows 11: o painel sobe um pouco enquanto aparece
++    onOpenChanged: if (open) openAnim.restart()
++    ParallelAnimation {
++        id: openAnim
++        NumberAnimation { target: slide; property: "y"; from: Kirigami.Units.gridUnit * 1.2; to: 0; duration: 260; easing.type: Easing.OutCubic }
++        NumberAnimation { target: mainColumn; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++    }
  
 -    // The popup fill, border and shadow are supplied by the Plasma theme's
 -    // dialogs/background.svg; we only lay out the content here.
      ColumnLayout {
          id: mainColumn
++        transform: Translate { id: slide }
          anchors {
-@@ -40,76 +49,34 @@ Item {
+             left: parent.left
+             right: parent.right
+@@ -40,78 +58,53 @@ Item {
          }
          spacing: Kirigami.Units.largeSpacing
  
@@ -222,7 +233,6 @@ index 9649ada..bbd96eb 100644
 -                font {
 -                    family: Kirigami.Theme.defaultFont.family
 -                    pixelSize: Kirigami.Units.gridUnit * 1.1
--                }
 +                text: Qt.locale().toString(root.currentTime,
 +                          Qt.locale().dateFormat(Locale.LongFormat).replace(/[,\s]*('[^']*'\s*)?y+/, ""))
 +                color: palette.text
@@ -230,8 +240,16 @@ index 9649ada..bbd96eb 100644
 +                elide: Text.ElideRight
 +            }
 +            PlasmaComponents.ToolButton {
-+                icon.name: expandedRoot.collapsed ? "go-up" : "go-down"
++                // a seta gira ao recolher/abrir
++                icon.name: "go-up"
 +                display: PlasmaComponents.AbstractButton.IconOnly
++                contentItem: Kirigami.Icon {
++                    source: "go-up"
++                    implicitWidth: Kirigami.Units.iconSizes.small
++                    implicitHeight: Kirigami.Units.iconSizes.small
++                    rotation: expandedRoot.collapsed ? 0 : 180
++                    Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                 }
 +                text: expandedRoot.collapsed ? i18n("Show calendar") : i18n("Hide calendar")
 +                PlasmaComponents.ToolTip.text: text
 +                PlasmaComponents.ToolTip.visible: hovered
@@ -239,14 +257,29 @@ index 9649ada..bbd96eb 100644
              }
          }
  
-         // ── Calendar grid ──
-         CalendarView {
-             id: calendarView
-+            visible: !expandedRoot.collapsed
+-        // ── Calendar grid ──
+-        CalendarView {
+-            id: calendarView
++        // ── Calendar grid (a altura anima ao recolher/abrir) ──
++        Item {
              Layout.fillWidth: true
-             focus: true
+-            focus: true
++            Layout.preferredHeight: expandedRoot.collapsed ? 0 : calendarView.implicitHeight
++            Layout.topMargin: expandedRoot.collapsed ? -mainColumn.spacing : 0
++            clip: true
++            Behavior on Layout.preferredHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            Behavior on Layout.topMargin { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
++            CalendarView {
++                id: calendarView
++                width: parent.width
++                opacity: expandedRoot.collapsed ? 0 : 1
++                Behavior on opacity { NumberAnimation { duration: 180 } }
++                focus: true
++            }
          }
-@@ -119,7 +86,8 @@ Item {
+ 
+         // ── Optional timezone list ──
+@@ -119,7 +112,8 @@ Item {
              id: timeZoneView
              Layout.fillWidth: true
              Layout.preferredHeight: visible ? Kirigami.Units.gridUnit * 8 : 0
@@ -258,10 +291,10 @@ index 9649ada..bbd96eb 100644
  }
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
 new file mode 100644
-index 0000000..535f0ac
+index 0000000..1922ab0
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,395 @@
 +/*
 +    Central de notificações do Windows 11 (o painel de cima do relógio):
 +    "Notificações" com "Limpar tudo" e o sino do Não incomodar; o link das
@@ -451,8 +484,10 @@ index 0000000..535f0ac
 +        model: notifications
 +        PlasmaComponents.ScrollBar.vertical: PlasmaComponents.ScrollBar {}
 +
-+        // sem transições de posição: as alturas mudam junto (cantos do cartão, "+N") e elas
-+        // deixavam itens sobrepostos
++        // só fade: transições de posição, com as alturas mudando junto (cantos do cartão,
++        // "+N"), deixavam itens sobrepostos
++        add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutQuad } }
++        remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 150 } }
 +
 +        delegate: Item {
 +            id: row
@@ -549,8 +584,15 @@ index 0000000..535f0ac
 +                            visible: bodyLabel.truncated || row.bodyExpanded
 +                            Layout.preferredWidth: Kirigami.Units.iconSizes.small + 8
 +                            Layout.preferredHeight: Layout.preferredWidth
-+                            icon.name: row.bodyExpanded ? "go-up" : "go-down"
++                            icon.name: "go-down"
 +                            display: PlasmaComponents.AbstractButton.IconOnly
++                            contentItem: Kirigami.Icon {
++                                source: "go-down"
++                                implicitWidth: Kirigami.Units.iconSizes.small
++                                implicitHeight: Kirigami.Units.iconSizes.small
++                                rotation: row.bodyExpanded ? 180 : 0
++                                Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
++                            }
 +                            text: row.bodyExpanded ? i18n("Show less") : i18n("Show more")
 +                            onClicked: row.bodyExpanded = !row.bodyExpanded
 +                        }
@@ -650,10 +692,10 @@ index 0000000..535f0ac
 +}
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml
 new file mode 100644
-index 0000000..7dc62c6
+index 0000000..cd60b11
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationPanel.qml
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,58 @@
 +/*
 +    Painel de cima do relógio (Windows 11): a central de notificações, numa
 +    janela própria acima do calendário.
@@ -686,10 +728,22 @@ index 0000000..7dc62c6
 +    Layout.maximumHeight: wantedHeight
 +
 +    // ao abrir, as notificações contam como lidas
-+    onOpenChanged: if (open) center.markRead()
++    onOpenChanged: if (open) { center.markRead(); openAnim.restart(); }
++
++    // Windows 11: sobe um pouco enquanto aparece, logo depois do calendário
++    SequentialAnimation {
++        id: openAnim
++        PropertyAction { target: center; property: "opacity"; value: 0 }
++        PauseAnimation { duration: 60 }
++        ParallelAnimation {
++            NumberAnimation { target: slide; property: "y"; from: Kirigami.Units.gridUnit * 1.2; to: 0; duration: 260; easing.type: Easing.OutCubic }
++            NumberAnimation { target: center; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
++        }
++    }
 +
 +    NotificationCenter {
 +        id: center
++        transform: Translate { id: slide }
 +        anchors {
 +            left: parent.left
 +            right: parent.right
