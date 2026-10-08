@@ -78,7 +78,7 @@ index e8cb979..5709acb 100644
              textFormat: Text.PlainText
  
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
-index 9649ada..301d49b 100644
+index 9649ada..1d6b4f6 100644
 --- a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/ExpandedRepresentation.qml
 @@ -8,6 +8,7 @@ pragma ComponentBehavior: Bound
@@ -157,8 +157,8 @@ index 9649ada..301d49b 100644
 -                }
 +            // a lista rola: o calendário fica sempre inteiro na tela
 +            maxListHeight: Math.max(Kirigami.Units.gridUnit * 6,
-+                Screen.desktopAvailableHeight - expandedRoot.calendarPartHeight
-+                - Kirigami.Units.gridUnit * 6)
++                // altura da tela do popup (desktopAvailableHeight soma todas as telas)
++                Screen.height - expandedRoot.calendarPartHeight - Kirigami.Units.gridUnit * 9)
 +        }
  
 -                PlasmaComponents.Label {
@@ -215,10 +215,10 @@ index 9649ada..301d49b 100644
          // ── Calendar grid ──
 diff --git a/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
 new file mode 100644
-index 0000000..8067fbd
+index 0000000..7b29485
 --- /dev/null
 +++ b/plasma/applets/org.kde.windowsmodern.digitalclock/contents/ui/NotificationCenter.qml
-@@ -0,0 +1,309 @@
+@@ -0,0 +1,314 @@
 +/*
 +    Central de notificações do Windows 11, em cima do calendário do relógio:
 +    "Notificações" com o sino do Não incomodar e "Limpar tudo"; as
@@ -286,7 +286,7 @@ index 0000000..8067fbd
 +        sortMode: NotificationManager.Notifications.SortByDate
 +        sortOrder: Qt.DescendingOrder
 +        groupMode: NotificationManager.Notifications.GroupApplicationsFlat
-+        groupLimit: 3
++        groupLimit: 0 // todas as notificações de cada app, como no Windows
 +        expandUnread: true
 +    }
 +
@@ -381,7 +381,7 @@ index 0000000..8067fbd
 +        id: groupHeader
 +        Item {
 +            id: header
-+            readonly property var m: parent.model
++            readonly property var m: parent && parent.model ? parent.model : ({}) // some ao sair da lista
 +            readonly property int row: parent.index
 +            implicitHeight: Kirigami.Units.gridUnit * 1.8
 +            HoverHandler { id: headerHover }
@@ -416,7 +416,7 @@ index 0000000..8067fbd
 +        id: card
 +        Rectangle {
 +            id: cardItem
-+            readonly property var m: parent.model
++            readonly property var m: parent && parent.model ? parent.model : ({}) // some ao sair da lista
 +            readonly property int row: parent.index
 +            readonly property var actionNames: m.actionNames || []
 +            readonly property var actionLabels: m.actionLabels || []
@@ -436,6 +436,21 @@ index 0000000..8067fbd
 +                onClicked: if (cardItem.m.hasDefaultAction) {
 +                    notifications.invokeDefaultAction(notifications.index(cardItem.row, 0), NotificationManager.Notifications.Close);
 +                }
++            }
++
++            PlasmaComponents.ToolButton {
++                id: closeButton
++                z: 1
++                visible: cardMouse.containsMouse || hovered
++                anchors.top: parent.top
++                anchors.right: parent.right
++                anchors.margins: 4
++                width: Kirigami.Units.iconSizes.smallMedium + 8
++                height: width
++                icon.name: "window-close"
++                display: PlasmaComponents.AbstractButton.IconOnly
++                text: i18n("Close")
++                onClicked: notifications.close(notifications.index(cardItem.row, 0))
 +            }
 +
 +            ColumnLayout {
@@ -478,20 +493,10 @@ index 0000000..8067fbd
 +                                elide: Text.ElideRight
 +                            }
 +                            PlasmaComponents.Label {
-+                                visible: !closeButton.visible
++                                // no hover, o X (por cima, no canto) ocupa o lugar da hora
++                                opacity: cardMouse.containsMouse || closeButton.hovered ? 0 : 0.6
 +                                text: center.age(cardItem.m.updated || cardItem.m.created)
-+                                opacity: 0.6
 +                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-+                            }
-+                            PlasmaComponents.ToolButton {
-+                                id: closeButton
-+                                visible: cardMouse.containsMouse || hovered
-+                                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium + 6
-+                                Layout.preferredHeight: Layout.preferredWidth
-+                                icon.name: "window-close"
-+                                display: PlasmaComponents.AbstractButton.IconOnly
-+                                text: i18n("Close")
-+                                onClicked: notifications.close(notifications.index(cardItem.row, 0))
 +                            }
 +                        }
 +                        PlasmaComponents.Label {
